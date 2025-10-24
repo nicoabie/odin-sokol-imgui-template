@@ -6,6 +6,70 @@ import sg "../sokol/gfx"
 import "core:c"
 import "core:mem"
 
+ImGuiCol :: enum {
+	ImGuiCol_Text = 0,
+	ImGuiCol_TextDisabled,
+	ImGuiCol_WindowBg, // Background of normal windows
+	ImGuiCol_ChildBg, // Background of child windows
+	ImGuiCol_PopupBg, // Background of popups, menus, tooltips windows
+	ImGuiCol_Border,
+	ImGuiCol_BorderShadow,
+	ImGuiCol_FrameBg, // Background of checkbox, radio button, plot, slider, text input
+	ImGuiCol_FrameBgHovered,
+	ImGuiCol_FrameBgActive,
+	ImGuiCol_TitleBg, // Title bar
+	ImGuiCol_TitleBgActive, // Title bar when focused
+	ImGuiCol_TitleBgCollapsed, // Title bar when collapsed
+	ImGuiCol_MenuBarBg,
+	ImGuiCol_ScrollbarBg,
+	ImGuiCol_ScrollbarGrab,
+	ImGuiCol_ScrollbarGrabHovered,
+	ImGuiCol_ScrollbarGrabActive,
+	ImGuiCol_CheckMark, // Checkbox tick and RadioButton circle
+	ImGuiCol_SliderGrab,
+	ImGuiCol_SliderGrabActive,
+	ImGuiCol_Button,
+	ImGuiCol_ButtonHovered,
+	ImGuiCol_ButtonActive,
+	ImGuiCol_Header, // Header* colors are used for CollapsingHeader, TreeNode, Selectable, MenuItem
+	ImGuiCol_HeaderHovered,
+	ImGuiCol_HeaderActive,
+	ImGuiCol_Separator,
+	ImGuiCol_SeparatorHovered,
+	ImGuiCol_SeparatorActive,
+	ImGuiCol_ResizeGrip, // Resize grip in lower-right and lower-left corners of windows.
+	ImGuiCol_ResizeGripHovered,
+	ImGuiCol_ResizeGripActive,
+	ImGuiCol_InputTextCursor, // InputText cursor/caret
+	ImGuiCol_TabHovered, // Tab background, when hovered
+	ImGuiCol_Tab, // Tab background, when tab-bar is focused & tab is unselected
+	ImGuiCol_TabSelected, // Tab background, when tab-bar is focused & tab is selected
+	ImGuiCol_TabSelectedOverline, // Tab horizontal overline, when tab-bar is focused & tab is selected
+	ImGuiCol_TabDimmed, // Tab background, when tab-bar is unfocused & tab is unselected
+	ImGuiCol_TabDimmedSelected, // Tab background, when tab-bar is unfocused & tab is selected
+	ImGuiCol_TabDimmedSelectedOverline, // horizontal overline, when tab-bar is unfocused & tab is selected
+	ImGuiCol_PlotLines,
+	ImGuiCol_PlotLinesHovered,
+	ImGuiCol_PlotHistogram,
+	ImGuiCol_PlotHistogramHovered,
+	ImGuiCol_TableHeaderBg, // Table header background
+	ImGuiCol_TableBorderStrong, // Table outer and header borders (prefer using Alpha=1.0 here)
+	ImGuiCol_TableBorderLight, // Table inner borders (prefer using Alpha=1.0 here)
+	ImGuiCol_TableRowBg, // Table row background (even rows)
+	ImGuiCol_TableRowBgAlt, // Table row background (odd rows)
+	ImGuiCol_TextLink, // Hyperlink color
+	ImGuiCol_TextSelectedBg, // Selected text inside an InputText
+	ImGuiCol_TreeLines, // Tree node hierarchy outlines when using ImGuiTreeNodeFlags_DrawLines
+	ImGuiCol_DragDropTarget, // Rectangle highlighting a drop target
+	ImGuiCol_UnsavedMarker, // Unsaved Document marker (in window title and tabs)
+	ImGuiCol_NavCursor, // Color of keyboard/gamepad navigation cursor/rectangle, when visible
+	ImGuiCol_NavWindowingHighlight, // Highlight window when using CTRL+TAB
+	ImGuiCol_NavWindowingDimBg, // Darken/colorize entire screen behind the CTRL+TAB window list, when active
+	ImGuiCol_ModalWindowDimBg, // Darken/colorize entire screen behind a modal window, when one is active
+	ImGuiCol_COUNT,
+}
+
+
 Context :: struct {
 	cur_dpi_scale:    f32,
 	vbuf:             sg.Buffer,
@@ -50,46 +114,111 @@ ApplyImGuiTheme :: proc() {
 	// 21=Button,22=ButtonHovered,23=ButtonActive,24=Header,25=HeaderHovered,26=HeaderActive,
 	// 27=Separator,28=SeparatorHovered,29=SeparatorActive,30=ResizeGrip,33=Tab,34=TabHovered,35=TabActive
 
-	s.Colors[0] = imgui.Vec4{0.95, 0.95, 0.95, 1.00} // Text
-	s.Colors[1] = imgui.Vec4{0.60, 0.60, 0.60, 1.00} // TextDisabled
-	s.Colors[2] = imgui.Vec4{0.06, 0.06, 0.08, 0.95} // WindowBg
-	s.Colors[3] = imgui.Vec4{0.07, 0.07, 0.09, 0.95} // ChildBg
-	s.Colors[4] = imgui.Vec4{0.07, 0.07, 0.09, 0.95} // PopupBg
-	s.Colors[5] = imgui.Vec4{0.15, 0.15, 0.15, 0.50} // Border
-	s.Colors[6] = imgui.Vec4{0.00, 0.00, 0.00, 0.00} // BorderShadow
+	s.Colors[ImGuiCol.ImGuiCol_Text] = imgui.Vec4{0.95, 0.95, 0.95, 1.00} // Text
+	s.Colors[ImGuiCol.ImGuiCol_TextDisabled] = imgui.Vec4{0.60, 0.60, 0.60, 1.00} // TextDisabled
+	s.Colors[ImGuiCol.ImGuiCol_WindowBg] = imgui.Vec4{0.06, 0.06, 0.06, 0.95} // WindowBg
+	s.Colors[ImGuiCol.ImGuiCol_ChildBg] = imgui.Vec4{0.06, 0.06, 0.06, 0.95} // ChildBg
+	s.Colors[ImGuiCol.ImGuiCol_PopupBg] = imgui.Vec4{0.06, 0.06, 0.06, 0.95} // PopupBg
+	s.Colors[ImGuiCol.ImGuiCol_Border] = imgui.Vec4{0.15, 0.15, 0.15, 0.50} // Border
+	s.Colors[ImGuiCol.ImGuiCol_BorderShadow] = imgui.Vec4{0.00, 0.00, 0.00, 0.00} // BorderShadow
 
-	s.Colors[7] = imgui.Vec4{0.10, 0.10, 0.12, 0.90} // FrameBg
-	s.Colors[8] = imgui.Vec4{0.20, 0.20, 0.20, 0.95} // FrameBgHovered
-	s.Colors[9] = imgui.Vec4{0.24, 0.24, 0.24, 0.95} // FrameBgActive
+	s.Colors[ImGuiCol.ImGuiCol_FrameBg] = imgui.Vec4{0.10, 0.10, 0.12, 0.90} // FrameBg
+	s.Colors[ImGuiCol.ImGuiCol_FrameBgHovered] = imgui.Vec4{0.20, 0.20, 0.20, 0.95} // FrameBgHovered
+	s.Colors[ImGuiCol.ImGuiCol_FrameBgActive] = imgui.Vec4{0.24, 0.24, 0.24, 0.95} // FrameBgActive
 
-	s.Colors[10] = imgui.Vec4{0.06, 0.06, 0.06, 0.95} // TitleBg
-	s.Colors[11] = imgui.Vec4{0.14, 0.14, 0.14, 0.95} // TitleBgActive
-	s.Colors[12] = imgui.Vec4{0.00, 0.00, 0.00, 0.51} // TitleBgCollapsed
+	s.Colors[ImGuiCol.ImGuiCol_TitleBg] = imgui.Vec4{0.08, 0.08, 0.08, 0.95} // TitleBg
+	s.Colors[ImGuiCol.ImGuiCol_TitleBgActive] = imgui.Vec4{0.06, 0.06, 0.06, 0.95} // TitleBgActive
+	s.Colors[ImGuiCol.ImGuiCol_TitleBgCollapsed] = imgui.Vec4{0.00, 0.00, 0.00, 0.51} // TitleBgCollapsed
+	s.Colors[ImGuiCol.ImGuiCol_MenuBarBg] = imgui.Vec4{0.08, 0.08, 0.08, 0.95} // MenuBarBg
 
-	s.Colors[21] = imgui.Vec4{0.12, 0.12, 0.14, 0.95} // Button
-	s.Colors[22] = imgui.Vec4{accent_r * 0.85, accent_g * 0.85, accent_b * 0.85, 0.95} // ButtonHovered
-	s.Colors[23] = imgui.Vec4{accent_r * 0.75, accent_g * 0.75, accent_b * 0.75, 0.95} // ButtonActive
+	s.Colors[ImGuiCol.ImGuiCol_Button] = imgui.Vec4{0.12, 0.12, 0.14, 0.95} // Button
+	s.Colors[ImGuiCol.ImGuiCol_ButtonHovered] = imgui.Vec4 {
+		accent_r * 0.85,
+		accent_g * 0.85,
+		accent_b * 0.85,
+		0.95,
+	} // ButtonHovered
+	s.Colors[ImGuiCol.ImGuiCol_ButtonActive] = imgui.Vec4{0.08, 0.08, 0.08, 0.95} // ButtonActive
 
-	s.Colors[24] = imgui.Vec4{0.12, 0.12, 0.14, 0.95} // Header
-	s.Colors[25] = imgui.Vec4{accent_r * 0.85, accent_g * 0.85, accent_b * 0.85, 0.95} // HeaderHovered
-	s.Colors[26] = imgui.Vec4{accent_r * 0.75, accent_g * 0.75, accent_b * 0.75, 0.95} // HeaderActive
+	s.Colors[ImGuiCol.ImGuiCol_Header] = imgui.Vec4{0.08, 0.08, 0.08, 0.95} // Header
+	s.Colors[ImGuiCol.ImGuiCol_HeaderHovered] = imgui.Vec4 {
+		accent_r * 0.85,
+		accent_g * 0.85,
+		accent_b * 0.85,
+		0.95,
+	} // HeaderHovered
+	s.Colors[ImGuiCol.ImGuiCol_HeaderActive] = imgui.Vec4 {
+		accent_r * 0.75,
+		accent_g * 0.75,
+		accent_b * 0.75,
+		0.95,
+	} // HeaderActive
 
-	s.Colors[27] = imgui.Vec4{0.12, 0.12, 0.14, 1.00} // Separator
-	s.Colors[28] = imgui.Vec4{accent_r * 0.85, accent_g * 0.85, accent_b * 0.85, 0.95} // SeparatorHovered
-	s.Colors[29] = imgui.Vec4{accent_r * 0.75, accent_g * 0.75, accent_b * 0.75, 1.00} // SeparatorActive
+	s.Colors[ImGuiCol.ImGuiCol_Separator] = imgui.Vec4{0.12, 0.12, 0.14, 1.00} // Separator
+	s.Colors[ImGuiCol.ImGuiCol_SeparatorHovered] = imgui.Vec4 {
+		accent_r * 0.85,
+		accent_g * 0.85,
+		accent_b * 0.85,
+		0.95,
+	} // SeparatorHovered
+	s.Colors[ImGuiCol.ImGuiCol_SeparatorActive] = imgui.Vec4 {
+		accent_r * 0.75,
+		accent_g * 0.75,
+		accent_b * 0.75,
+		1.00,
+	} // SeparatorActive
 
-	s.Colors[34] = imgui.Vec4{0.10, 0.10, 0.12, 0.95} // Tab
-	s.Colors[33] = imgui.Vec4{accent_r * 0.85, accent_g * 0.85, accent_b * 0.85, 0.95} // TabHovered
-	s.Colors[35] = imgui.Vec4{accent_r * 0.75, accent_g * 0.75, accent_b * 0.75, 0.95} // TabActive
+	s.Colors[ImGuiCol.ImGuiCol_Tab] = imgui.Vec4{0.10, 0.10, 0.12, 0.95} // Tab
+	s.Colors[ImGuiCol.ImGuiCol_TabHovered] = imgui.Vec4 {
+		accent_r * 0.85,
+		accent_g * 0.85,
+		accent_b * 0.85,
+		0.95,
+	} // TabHovered
+	s.Colors[ImGuiCol.ImGuiCol_TabSelected] = imgui.Vec4 {
+		accent_r * 0.75,
+		accent_g * 0.75,
+		accent_b * 0.75,
+		0.95,
+	} // TabActive
 
-	s.Colors[18] = imgui.Vec4{accent_r * 0.85, accent_g * 0.85, accent_b * 0.85, 0.95} // CheckMark
-	s.Colors[19] = imgui.Vec4{accent_r * 0.85, accent_g * 0.85, accent_b * 0.85, 0.95} // SliderGrab
-	s.Colors[20] = imgui.Vec4{accent_r * 0.75, accent_g * 0.75, accent_b * 0.75, 0.95} // SliderGrabActive
+	s.Colors[ImGuiCol.ImGuiCol_CheckMark] = imgui.Vec4 {
+		accent_r * 0.85,
+		accent_g * 0.85,
+		accent_b * 0.85,
+		0.95,
+	} // CheckMark
+	s.Colors[ImGuiCol.ImGuiCol_SliderGrab] = imgui.Vec4 {
+		accent_r * 0.85,
+		accent_g * 0.85,
+		accent_b * 0.85,
+		0.95,
+	} // SliderGrab
+	s.Colors[ImGuiCol.ImGuiCol_SliderGrabActive] = imgui.Vec4 {
+		accent_r * 0.75,
+		accent_g * 0.75,
+		accent_b * 0.75,
+		0.95,
+	} // SliderGrabActive
 
-	s.Colors[14] = imgui.Vec4{0.05, 0.05, 0.06, 0.90} // ScrollbarBg
-	s.Colors[15] = imgui.Vec4{0.12, 0.12, 0.14, 0.95} // ScrollbarGrab
-	s.Colors[16] = imgui.Vec4{accent_r * 0.85, accent_g * 0.85, accent_b * 0.85, 0.95} // ScrollbarGrabHovered
-	s.Colors[17] = imgui.Vec4{accent_r * 0.75, accent_g * 0.75, accent_b * 0.75, 0.95} // ScrollbarGrabActive
+	s.Colors[ImGuiCol.ImGuiCol_ScrollbarBg] = imgui.Vec4{0.05, 0.05, 0.06, 0.90} // ScrollbarBg
+	s.Colors[ImGuiCol.ImGuiCol_ScrollbarGrab] = imgui.Vec4{0.12, 0.12, 0.14, 0.95} // ScrollbarGrab
+	s.Colors[ImGuiCol.ImGuiCol_ScrollbarGrabHovered] = imgui.Vec4 {
+		accent_r * 0.85,
+		accent_g * 0.85,
+		accent_b * 0.85,
+		0.95,
+	} // ScrollbarGrabHovered
+	s.Colors[ImGuiCol.ImGuiCol_ScrollbarGrabActive] = imgui.Vec4 {
+		accent_r * 0.75,
+		accent_g * 0.75,
+		accent_b * 0.75,
+		0.95,
+	} // ScrollbarGrabActive
+
+	s.Colors[ImGuiCol.ImGuiCol_ResizeGrip] = imgui.Vec4{0.12, 0.12, 0.14, 0.95} // ResizeGrip
+	s.Colors[ImGuiCol.ImGuiCol_ResizeGripActive] = imgui.Vec4{0.12, 0.12, 0.14, 0.95} // ResizeGrip
+	s.Colors[ImGuiCol.ImGuiCol_ResizeGripHovered] = imgui.Vec4{0.12, 0.12, 0.14, 0.95} // ResizeGrip
 
 	// tooltip
 	s.Colors[4] = imgui.Vec4{0.06, 0.06, 0.08, 0.95}
