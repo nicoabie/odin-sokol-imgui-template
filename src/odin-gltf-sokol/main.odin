@@ -11,6 +11,7 @@ import sg "../sokol/gfx"
 import sapp "../sokol/app"
 import sglue "../sokol/glue"
 import slog "../sokol/log"
+import fetch "../sokol/fetch"
 
 filename :: "/Users/nico/Development/sokol-samples/sapp/data/gltf/DamagedHelmet/DamagedHelmet.gltf"
 
@@ -22,6 +23,11 @@ SCENE_MAX_PIPELINES  :: 16
 SCENE_MAX_PRIMITIVES :: 16
 SCENE_MAX_MESHES     :: 16
 SCENE_MAX_NODES      :: 16
+
+
+// statically allocated buffers for file downloads
+SFETCH_NUM_CHANNELS :: 1
+SFETCH_NUM_LANES :: 4
 
 MAX_FILE_SIZE :: 1024 * 1024
 
@@ -225,6 +231,15 @@ init :: proc "c" () {
 		longitude = 45.0,
 		distance = 2.5,
 	})
+
+	// setup sokol-fetch with 2 channels and 6 lanes per channel,
+    // we'll use one channel for mesh data and the other for textures
+    fetch.sfetch_setup(&(fetch.sfetch_desc_t){
+        max_requests = 64,
+        num_channels = SFETCH_NUM_CHANNELS,
+        num_lanes = SFETCH_NUM_LANES,
+        logger = { func = slog.func },
+    })
 
 	state.pass_action_ok = {
 		colors = {
