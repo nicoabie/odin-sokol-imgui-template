@@ -15,15 +15,15 @@ import sglue "../sokol/glue"
 import slog "../sokol/log"
 import fetch "../sokol/fetch"
 
-gltf_filepath :: "DamagedHelmet.gltf"
-gltf_basepath :: "/Users/nico/Development/sokol-samples/sapp/data/gltf/DamagedHelmet/"
+gltf_filepath :: "Ferrari.gltf"
+gltf_basepath :: "/Users/nico/Development/delve-framework/assets/meshes/multiple-materials/ferrari/"
 
 SCENE_INVALID_INDEX :: -1
-SCENE_MAX_BUFFERS    :: 16
-SCENE_MAX_IMAGES     :: 16
-SCENE_MAX_MATERIALS  :: 16
+SCENE_MAX_BUFFERS    :: 128
+SCENE_MAX_IMAGES     :: 128
+SCENE_MAX_MATERIALS  :: 32
 SCENE_MAX_PIPELINES  :: 16
-SCENE_MAX_PRIMITIVES :: 16
+SCENE_MAX_PRIMITIVES :: 32
 SCENE_MAX_MESHES     :: 16
 SCENE_MAX_NODES      :: 16
 
@@ -316,6 +316,8 @@ init :: proc "c" () {
 		mag_filter = .NEAREST,
 	})
 
+	fmt.println("Loading glTF file: ", gltf_filepath)
+
 	full_path := strings.concatenate([]string{gltf_basepath, string(gltf_filepath)})
 	req := fetch.sfetch_request_t{
 		path = strings.clone_to_cstring(full_path),
@@ -359,7 +361,9 @@ gltf_fetch_callback :: proc "c" (response: ^fetch.sfetch_response_t) {
 }
 
 gltf_parse_buffers :: proc "c" (gltf: ^cgltf.data) {
+	context = runtime.default_context()
 	if len(gltf.buffer_views) > SCENE_MAX_BUFFERS {
+		fmt.println("Too many buffer views in glTF file (max: %d), current: %d", SCENE_MAX_BUFFERS, len(gltf.buffer_views))
 		state.failed = true
 		return
 	}
@@ -429,7 +433,9 @@ gltf_buffer_fetch_callback :: proc "c" (response: ^fetch.sfetch_response_t) {
 }
 
 gltf_parse_images :: proc "c" (gltf: ^cgltf.data) {
+	context = runtime.default_context()
 	if len(gltf.textures) > SCENE_MAX_IMAGES {
+		fmt.println("Too many textures in glTF file (max: %d), current: %d", SCENE_MAX_IMAGES, len(gltf.textures))
 		state.failed = true
 		return
 	}
@@ -487,6 +493,7 @@ Image_Fetch_Userdata :: struct {
 }
 
 gltf_image_fetch_callback :: proc "c" (response: ^fetch.sfetch_response_t) {
+	context = runtime.default_context()
 	if response.dispatched {
 		buf := fetch.sfetch_range_t{
 			ptr = &sfetch_buffers[response.channel][response.lane],
@@ -503,7 +510,9 @@ gltf_image_fetch_callback :: proc "c" (response: ^fetch.sfetch_response_t) {
 	}
 	if response.finished {
 		if response.failed {
-			state.failed = true
+			user_data := cast(^Image_Fetch_Userdata)(response.user_data)
+			fmt.println("Failed to fetch image at index %d", user_data.image_index)
+			// state.failed = true
 		}
 	}
 }
@@ -598,7 +607,9 @@ create_sg_image_samplers_for_gltf_image :: proc "c" (gltf_image_index: i32, data
 }
 
 gltf_parse_materials :: proc "c" (gltf: ^cgltf.data) {
+	context = runtime.default_context()
 	if len(gltf.materials) > SCENE_MAX_MATERIALS {
+		fmt.println("Too many materials in glTF file (max: %d), current: %d", SCENE_MAX_MATERIALS, len(gltf.materials))
 		state.failed = true
 		return
 	}
@@ -623,17 +634,19 @@ gltf_parse_materials :: proc "c" (gltf: ^cgltf.data) {
 			dst.fs_params.metallic_factor = src.metallic_factor
 			dst.fs_params.roughness_factor = src.roughness_factor
 
-			dst.images.base_color = i32(cgltf.texture_index(gltf, src.base_color_texture.texture))
-			dst.images.metallic_roughness = i32(cgltf.texture_index(gltf, src.metallic_roughness_texture.texture))
-			dst.images.normal = i32(cgltf.texture_index(gltf, gltf_mat.normal_texture.texture))
-			dst.images.occlusion = i32(cgltf.texture_index(gltf, gltf_mat.occlusion_texture.texture))
-			dst.images.emissive = i32(cgltf.texture_index(gltf, gltf_mat.emissive_texture.texture))
+			dst.images.base_color = src.base_color_texture.texture != nil ? i32(cgltf.texture_index(gltf, src.base_color_texture.texture)) : SCENE_INVALID_INDEX
+			dst.images.metallic_roughness = src.metallic_roughness_texture.texture != nil ? i32(cgltf.texture_index(gltf, src.metallic_roughness_texture.texture)) : SCENE_INVALID_INDEX
+			dst.images.normal = gltf_mat.normal_texture.texture != nil ? i32(cgltf.texture_index(gltf, gltf_mat.normal_texture.texture)) : SCENE_INVALID_INDEX
+			dst.images.occlusion = gltf_mat.occlusion_texture.texture != nil ? i32(cgltf.texture_index(gltf, gltf_mat.occlusion_texture.texture)) : SCENE_INVALID_INDEX
+			dst.images.emissive = gltf_mat.emissive_texture.texture != nil ? i32(cgltf.texture_index(gltf, gltf_mat.emissive_texture.texture)) : SCENE_INVALID_INDEX
 		}
 	}
 }
 
 gltf_parse_meshes :: proc "c" (gltf: ^cgltf.data) {
+	context = runtime.default_context()
 	if len(gltf.meshes) > SCENE_MAX_MESHES {
+		fmt.println("Too many meshes in glTF file (max: %d), current: %d", SCENE_MAX_MESHES, len(gltf.meshes))
 		state.failed = true
 		return
 	}
@@ -643,6 +656,7 @@ gltf_parse_meshes :: proc "c" (gltf: ^cgltf.data) {
 		gltf_mesh := &gltf.meshes[mesh_index]
 
 		if i32(len(gltf_mesh.primitives)) + state.scene.num_primitives > SCENE_MAX_PRIMITIVES {
+			fmt.println("Too many primitives in glTF file (max: %d), current: %d", SCENE_MAX_PRIMITIVES, i32(len(gltf_mesh.primitives)) + state.scene.num_primitives)
 			state.failed = true
 			return
 		}
@@ -847,7 +861,9 @@ create_sg_pipeline_for_gltf_primitive :: proc "c" (gltf: ^cgltf.data, prim: ^cgl
 }
 
 gltf_parse_nodes :: proc "c" (gltf: ^cgltf.data) {
+	context = runtime.default_context()
 	if len(gltf.nodes) > SCENE_MAX_NODES {
+		fmt.println("Too many nodes in glTF file (max: %d), current: %d", SCENE_MAX_NODES, len(gltf.nodes))
 		state.failed = true
 		return
 	}
@@ -938,17 +954,44 @@ frame :: proc "c" () {
 				sg.apply_uniforms(UB_light_params, sg.Range{&state.point_light, size_of(state.point_light)})
 
 				if mat.is_metallic {
-					base_color_tex := prim.material < state.scene.num_materials ? state.scene.images[mat.metallic.images.base_color].tex_view : sg.View{}
-					metallic_roughness_tex := state.scene.images[mat.metallic.images.metallic_roughness].tex_view
-					normal_tex := state.scene.images[mat.metallic.images.normal].tex_view
-					occlusion_tex := state.scene.images[mat.metallic.images.occlusion].tex_view
-					emissive_tex := state.scene.images[mat.metallic.images.emissive].tex_view
+					base_color_idx := mat.metallic.images.base_color
+					metallic_roughness_idx := mat.metallic.images.metallic_roughness
+					normal_idx := mat.metallic.images.normal
+					occlusion_idx := mat.metallic.images.occlusion
+					emissive_idx := mat.metallic.images.emissive
 
-					base_color_smp := state.scene.images[mat.metallic.images.base_color].smp
-					metallic_roughness_smp := state.scene.images[mat.metallic.images.metallic_roughness].smp
-					normal_smp := state.scene.images[mat.metallic.images.normal].smp
-					occlusion_smp := state.scene.images[mat.metallic.images.occlusion].smp
-					emissive_smp := state.scene.images[mat.metallic.images.emissive].smp
+					base_color_tex := sg.View{}
+					metallic_roughness_tex := sg.View{}
+					normal_tex := sg.View{}
+					occlusion_tex := sg.View{}
+					emissive_tex := sg.View{}
+
+					base_color_smp := sg.Sampler{}
+					metallic_roughness_smp := sg.Sampler{}
+					normal_smp := sg.Sampler{}
+					occlusion_smp := sg.Sampler{}
+					emissive_smp := sg.Sampler{}
+
+					if base_color_idx >= 0 && base_color_idx < state.scene.num_images {
+						base_color_tex = state.scene.images[base_color_idx].tex_view
+						base_color_smp = state.scene.images[base_color_idx].smp
+					}
+					if metallic_roughness_idx >= 0 && metallic_roughness_idx < state.scene.num_images {
+						metallic_roughness_tex = state.scene.images[metallic_roughness_idx].tex_view
+						metallic_roughness_smp = state.scene.images[metallic_roughness_idx].smp
+					}
+					if normal_idx >= 0 && normal_idx < state.scene.num_images {
+						normal_tex = state.scene.images[normal_idx].tex_view
+						normal_smp = state.scene.images[normal_idx].smp
+					}
+					if occlusion_idx >= 0 && occlusion_idx < state.scene.num_images {
+						occlusion_tex = state.scene.images[occlusion_idx].tex_view
+						occlusion_smp = state.scene.images[occlusion_idx].smp
+					}
+					if emissive_idx >= 0 && emissive_idx < state.scene.num_images {
+						emissive_tex = state.scene.images[emissive_idx].tex_view
+						emissive_smp = state.scene.images[emissive_idx].smp
+					}
 
 					if base_color_tex.id == 0 {
 						base_color_tex = state.placeholders.white
@@ -1002,6 +1045,7 @@ cleanup :: proc "c" () {
 }
 
 main :: proc () {
+	context.logger = log.create_console_logger()
 	sapp.run({
 		init_cb = init,
 		frame_cb = frame,
