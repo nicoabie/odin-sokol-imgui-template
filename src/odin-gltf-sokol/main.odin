@@ -2,6 +2,8 @@ package odin_gltf_sokol
 
 import "core:log"
 import "core:fmt"
+import "core:c"
+import "core:strings"
 import "base:runtime"
 import "core:os/old"
 import "core:math"
@@ -13,7 +15,8 @@ import sglue "../sokol/glue"
 import slog "../sokol/log"
 import fetch "../sokol/fetch"
 
-filename :: "/Users/nico/Development/sokol-samples/sapp/data/gltf/DamagedHelmet/DamagedHelmet.gltf"
+gltf_filepath :: "DamagedHelmet.gltf"
+gltf_basepath :: "/Users/nico/Development/sokol-samples/sapp/data/gltf/DamagedHelmet/"
 
 SCENE_INVALID_INDEX :: -1
 SCENE_MAX_BUFFERS    :: 16
@@ -31,12 +34,14 @@ SFETCH_NUM_LANES :: 4
 
 MAX_FILE_SIZE :: 1024 * 1024
 
+sfetch_buffers: [SFETCH_NUM_CHANNELS][SFETCH_NUM_LANES][MAX_FILE_SIZE]u8
+
 Metallic_Images :: struct {
 	base_color:            i32,
 	metallic_roughness:    i32,
 	normal:                i32,
 	occlusion:             i32,
-	emissive:              i32,
+	emissive:             i32,
 }
 
 Metallic_Material :: struct {
@@ -65,7 +70,7 @@ Primitive :: struct {
 
 Mesh :: struct {
 	first_primitive: i32,
-	num_primitives:  i32,
+	num_primitives: i32,
 }
 
 Node :: struct {
@@ -235,10 +240,10 @@ init :: proc "c" () {
 	// setup sokol-fetch with 2 channels and 6 lanes per channel,
     // we'll use one channel for mesh data and the other for textures
     fetch.sfetch_setup(&(fetch.sfetch_desc_t){
-        max_requests = 64,
+		max_requests = 64,
         num_channels = SFETCH_NUM_CHANNELS,
         num_lanes = SFETCH_NUM_LANES,
-        logger = { func = slog.func },
+		logger = { func = slog.func },
     })
 
 	state.pass_action_ok = {
@@ -311,58 +316,46 @@ init :: proc "c" () {
 		mag_filter = .NEAREST,
 	})
 
-	gltf_load()
+	full_path := strings.concatenate([]string{gltf_basepath, string(gltf_filepath)})
+	req := fetch.sfetch_request_t{
+		path = strings.clone_to_cstring(full_path),
+		callback = gltf_fetch_callback,
+	}
+	fetch.sfetch_send(&req)
 }
 
-gltf_load :: proc () {
-	data, ok := old.read_entire_file(filename)
-	if !ok {
-		state.failed = true
-		return
-	}
-	defer delete(data)
-
-	if len(data) > MAX_FILE_SIZE {
-		state.failed = true
-		return
-	}
-
-	copy(file_buffer[:], data)
-
-	file_buffer_offset = len(data)
-
-	options := cgltf.options {
-		memory = {
-			// TODO custom_alloc to use the load_buffers with cgltf.buffer_view_data()
-			// another option is to use sfetch as cgltf-sapp.c does, but we dont have sfetch here yet
-			alloc_func = custom_alloc,
-			free_func = custom_free,
-			user_data = nil,
-		},
-	}
-	gltf_data, result := cgltf.parse(options, transmute([^]u8)(&file_buffer), len(data))
+gltf_parse :: proc "c" (file_data: fetch.sfetch_range_t) {
+	options := cgltf.options {}
+	gltf_data, result := cgltf.parse(options, cast([^]u8)(file_data.ptr), uint(file_data.size))
 	if result != .success {
 		state.failed = true
 		return
 	}
 	defer cgltf.free(gltf_data)
 
-	if cgltf.load_buffers(options, gltf_data, filename) != .success {
-		state.failed = true
-		return
-	}
-
-    if (cgltf.validate(gltf_data) != .success) {
-		state.failed = true
-		log.error("gltf validation failed")
-        return;
-    }
-
 	gltf_parse_buffers(gltf_data)
 	gltf_parse_images(gltf_data)
 	gltf_parse_materials(gltf_data)
 	gltf_parse_meshes(gltf_data)
 	gltf_parse_nodes(gltf_data)
+}
+
+gltf_fetch_callback :: proc "c" (response: ^fetch.sfetch_response_t) {
+	if response.dispatched {
+		buf := fetch.sfetch_range_t{
+			ptr = &sfetch_buffers[response.channel][response.lane],
+			size = MAX_FILE_SIZE,
+		}
+		fetch.sfetch_bind_buffer(response.handle, buf)
+	} else if response.fetched {
+		data := fetch.sfetch_range_t{response.data.ptr, response.data.size}
+		gltf_parse(data)
+	}
+	if response.finished {
+		if response.failed {
+			state.failed = true
+		}
+	}
 }
 
 gltf_parse_buffers :: proc "c" (gltf: ^cgltf.data) {
@@ -389,25 +382,128 @@ gltf_parse_buffers :: proc "c" (gltf: ^cgltf.data) {
 
 	for i in 0..<len(gltf.buffers) {
 		gltf_buf := &gltf.buffers[i]
-		create_sg_buffers_for_gltf_buffer(i32(i), gltf_buf, gltf)
+		if gltf_buf.uri != nil && (cast([^]u8)(gltf_buf.uri))[0] != 0 {
+			send_buffer_request(i32(i), gltf_buf.uri)
+		}
 	}
 }
 
-create_sg_buffers_for_gltf_buffer :: proc "c" (gltf_buffer_index: i32, gltf_buf: ^cgltf.buffer, gltf: ^cgltf.data) {
-	for i in 0..<state.scene.num_buffers {
-		p := &state.creation_params.buffers[i]
-		if p.gltf_buffer_index == gltf_buffer_index {
-			gltf_buf_view := &gltf.buffer_views[i]
-			view_data := cgltf.buffer_view_data(gltf_buf_view)
-			offset := gltf_buf_view.offset
+send_buffer_request :: proc "c" (buffer_index: i32, uri: cstring) {
+	context = runtime.default_context()
+	full_path := strings.concatenate([]string{gltf_basepath, string(uri)})
+	user_data := Buffer_Fetch_Userdata {
+		buffer_index = i32(buffer_index),
+	}
+	req := fetch.sfetch_request_t{
+		path = strings.clone_to_cstring(full_path),
+		callback = gltf_buffer_fetch_callback,
+		user_data = fetch.sfetch_range_t{&user_data, size_of(user_data)},
+	}
+	fetch.sfetch_send(&req)
+}
 
-			sg.init_buffer(state.scene.buffers[i], sg.Buffer_Desc{
-				usage = p.usage,
-				data = {
-					ptr = cast(rawptr)(uintptr(view_data) + uintptr(offset)),
-					size = uint(p.size),
-				},
-			})
+Buffer_Fetch_Userdata :: struct {
+	buffer_index: i32,
+}
+
+gltf_buffer_fetch_callback :: proc "c" (response: ^fetch.sfetch_response_t) {
+	if response.dispatched {
+		buf := fetch.sfetch_range_t{
+			ptr = &sfetch_buffers[response.channel][response.lane],
+			size = MAX_FILE_SIZE,
+		}
+		fetch.sfetch_bind_buffer(response.handle, buf)
+	} else if response.fetched {
+		user_data := cast(^Buffer_Fetch_Userdata)(response.user_data)
+		gltf_buffer_index := user_data.buffer_index
+		create_sg_buffers_for_gltf_buffer(gltf_buffer_index, sg.Range{
+			ptr = response.data.ptr,
+			size = uint(response.data.size),
+		})
+	}
+	if response.finished {
+		if response.failed {
+			state.failed = true
+		}
+	}
+}
+
+gltf_parse_images :: proc "c" (gltf: ^cgltf.data) {
+	if len(gltf.textures) > SCENE_MAX_IMAGES {
+		state.failed = true
+		return
+	}
+
+	state.scene.num_images = i32(len(gltf.textures))
+	for i in 0..<state.scene.num_images {
+		gltf_tex := &gltf.textures[i]
+		p := &state.creation_params.images[i]
+
+		if gltf_tex.image_ != nil {
+			p.gltf_image_index = i32(cgltf.image_index(gltf, gltf_tex.image_))
+		} else {
+			p.gltf_image_index = -1
+		}
+
+		if gltf_tex.sampler != nil {
+			p.min_filter = gltf_to_sg_min_filter(gltf_tex.sampler.min_filter)
+			p.mag_filter = gltf_to_sg_mag_filter(gltf_tex.sampler.mag_filter)
+			p.mipmap_filter = gltf_to_sg_mipmap_filter(gltf_tex.sampler.min_filter)
+			p.wrap_s = gltf_to_sg_wrap(gltf_tex.sampler.wrap_s)
+			p.wrap_t = gltf_to_sg_wrap(gltf_tex.sampler.wrap_t)
+		} else {
+			p.min_filter = .LINEAR
+			p.mag_filter = .LINEAR
+			p.mipmap_filter = .LINEAR
+			p.wrap_s = .REPEAT
+			p.wrap_t = .REPEAT
+		}
+	}
+
+	for i in 0..<len(gltf.images) {
+		gltf_img := &gltf.images[i]
+		if gltf_img.uri != nil && (cast([^]u8)(gltf_img.uri))[0] != 0 {
+			send_image_request(i32(i), gltf_img.uri)
+		}
+	}
+}
+
+send_image_request :: proc "c" (image_index: i32, uri: cstring) {
+	context = runtime.default_context()
+	full_path := strings.concatenate([]string{gltf_basepath, string(uri)})
+	user_data := Image_Fetch_Userdata {
+		image_index = i32(image_index),
+	}
+	req := fetch.sfetch_request_t{
+		path = strings.clone_to_cstring(full_path),
+		callback = gltf_image_fetch_callback,
+		user_data = fetch.sfetch_range_t{&user_data, size_of(user_data)},
+	}
+	fetch.sfetch_send(&req)
+}
+
+Image_Fetch_Userdata :: struct {
+	image_index: i32,
+}
+
+gltf_image_fetch_callback :: proc "c" (response: ^fetch.sfetch_response_t) {
+	if response.dispatched {
+		buf := fetch.sfetch_range_t{
+			ptr = &sfetch_buffers[response.channel][response.lane],
+			size = MAX_FILE_SIZE,
+		}
+		fetch.sfetch_bind_buffer(response.handle, buf)
+	} else if response.fetched {
+		user_data := cast(^Image_Fetch_Userdata)(response.user_data)
+		gltf_image_index := user_data.image_index
+		create_sg_image_samplers_for_gltf_image(gltf_image_index, sg.Range{
+			ptr = response.data.ptr,
+			size = uint(response.data.size),
+		})
+	}
+	if response.finished {
+		if response.failed {
+			state.failed = true
 		}
 	}
 }
@@ -453,64 +549,42 @@ gltf_to_sg_wrap :: proc "c" (gltf_wrap: cgltf.wrap_mode) -> sg.Wrap {
 	return .REPEAT
 }
 
-gltf_parse_images :: proc "c" (gltf: ^cgltf.data) {
-	if len(gltf.textures) > SCENE_MAX_IMAGES {
-		state.failed = true
-		return
-	}
-
-	state.scene.num_images = i32(len(gltf.textures))
-	for i in 0..<state.scene.num_images {
-		gltf_tex := &gltf.textures[i]
-		p := &state.creation_params.images[i]
-
-		if gltf_tex.image_ != nil {
-			p.gltf_image_index = i32(cgltf.image_index(gltf, gltf_tex.image_))
-		} else {
-			p.gltf_image_index = -1
+create_sg_buffers_for_gltf_buffer :: proc "c" (gltf_buffer_index: i32, data: sg.Range) {
+	for i in 0..<state.scene.num_buffers {
+		p := &state.creation_params.buffers[i]
+		if p.gltf_buffer_index == gltf_buffer_index {
+			sg.init_buffer(state.scene.buffers[i], sg.Buffer_Desc{
+				usage = p.usage,
+				data = {
+					ptr = cast(rawptr)(uintptr(data.ptr) + uintptr(p.offset)),
+					size = uint(p.size),
+				},
+			})
 		}
-
-		if gltf_tex.sampler != nil {
-			p.min_filter = gltf_to_sg_min_filter(gltf_tex.sampler.min_filter)
-			p.mag_filter = gltf_to_sg_mag_filter(gltf_tex.sampler.mag_filter)
-			p.mipmap_filter = gltf_to_sg_mipmap_filter(gltf_tex.sampler.min_filter)
-			p.wrap_s = gltf_to_sg_wrap(gltf_tex.sampler.wrap_s)
-			p.wrap_t = gltf_to_sg_wrap(gltf_tex.sampler.wrap_t)
-		} else {
-			p.min_filter = .LINEAR
-			p.mag_filter = .LINEAR
-			p.mipmap_filter = .LINEAR
-			p.wrap_s = .REPEAT
-			p.wrap_t = .REPEAT
-		}
-	}
-
-	for i in 0..<len(gltf.images) {
-		create_sg_image_samplers_for_gltf_image(i32(i), &gltf.images[i])
 	}
 }
 
-create_sg_image_samplers_for_gltf_image :: proc "c" (gltf_image_index: i32, gltf_img: ^cgltf.image) {
+create_sg_image_samplers_for_gltf_image :: proc "c" (gltf_image_index: i32, data: sg.Range) {
+	context = runtime.default_context()
 	for i in 0..<state.scene.num_images {
 		p := &state.creation_params.images[i]
 		if p.gltf_image_index == gltf_image_index {
-			if gltf_img.buffer_view == nil {
-				continue
-			}
+			// ORIGINAL C CODE:
+			// state.scene.images[i].img = sbasisu_make_image(data);
+            // state.scene.images[i].tex_view = sg_make_view(&(sg_view_desc){
+            //     .texture = { .image = state.scene.images[i].img },
+            // });
+			// PORTED CODE (TODO implement actual basisu decoding):
+			// state.scene.images[i].img = sg.make_image(sg.Image_Desc{
+			// 	width = 1,
+			// 	height = 1,
+			// 	pixel_format = .RGBA8,
+			// 	data = {mip_levels = {0 = data}},
+			// })
 
-			view_data := cgltf.buffer_view_data(gltf_img.buffer_view)
-			offset := gltf_img.buffer_view.offset
-
-			state.scene.images[i].img = sg.make_image(sg.Image_Desc{
-				width = 1,
-				height = 1,
-				pixel_format = .RGBA8,
-				data = {mip_levels = {0 = {ptr = cast(rawptr)(uintptr(view_data) + uintptr(offset)), size = uint(gltf_img.buffer_view.size)}}},
-			})
-
-			state.scene.images[i].tex_view = sg.make_view(sg.View_Desc{
-				texture = { image = state.scene.images[i].img },
-			})
+			// state.scene.images[i].tex_view = sg.make_view(sg.View_Desc{
+			// 	texture = { image = state.scene.images[i].img },
+			// })
 
 			state.scene.images[i].smp = sg.make_sampler((sg.Sampler_Desc){
 				min_filter = p.min_filter,
@@ -823,6 +897,8 @@ build_transform_for_gltf_node :: proc "c" (gltf: ^cgltf.data, node: ^cgltf.node)
 }
 
 frame :: proc "c" () {
+	fetch.sfetch_dowork()
+
 	state.rx += 0.016
 	state.root_transform = linalg.matrix4_rotate(state.rx, Vec3{0, 1, 0})
 
@@ -921,6 +997,7 @@ frame :: proc "c" () {
 }
 
 cleanup :: proc "c" () {
+	fetch.sfetch_shutdown()
 	sg.shutdown()
 }
 
