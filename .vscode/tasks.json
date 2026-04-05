@@ -1,0 +1,14 @@
+{
+    "version": "2.0.0",
+    "tasks": [
+        {
+            "type": "shell",
+            "label": "odin: build debug gltf-sokol",
+            "command": "odin",
+            "args": ["build", "odin-gltf-sokol", "-debug"],
+            "options": {
+                "cwd": "${workspaceFolder}/src"
+            },
+        }
+    ]
+}
