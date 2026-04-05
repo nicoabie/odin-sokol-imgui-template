@@ -3,7 +3,7 @@ package odin_gltf_sokol
 import "core:log"
 import "core:fmt"
 import "base:runtime"
-import "core:os"
+import "core:os/old"
 import "core:math"
 import "core:math/linalg"
 import "vendor:cgltf"
@@ -300,7 +300,7 @@ init :: proc "c" () {
 }
 
 gltf_load :: proc () {
-	data, ok := os.read_entire_file(filename)
+	data, ok := old.read_entire_file(filename)
 	if !ok {
 		state.failed = true
 		return

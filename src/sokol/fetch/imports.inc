@@ -1,0 +1,61 @@
+when ODIN_OS == .Windows {
+    when USE_DLL {
+        when USE_GL {
+            when DEBUG { foreign import sokol_fetch_clib { "../sokol_dll_windows_x64_gl_debug.lib" } }
+            else       { foreign import sokol_fetch_clib { "../sokol_dll_windows_x64_gl_release.lib" } }
+        } else {
+            when DEBUG { foreign import sokol_fetch_clib { "../sokol_dll_windows_x64_d3d11_debug.lib" } }
+            else       { foreign import sokol_fetch_clib { "../sokol_dll_windows_x64_d3d11_release.lib" } }
+        }
+    } else {
+        when USE_GL {
+            when DEBUG { foreign import sokol_fetch_clib { "sokol_fetch_windows_x64_gl_debug.lib" } }
+            else       { foreign import sokol_fetch_clib { "sokol_fetch_windows_x64_gl_release.lib" } }
+        } else {
+            when DEBUG { foreign import sokol_fetch_clib { "sokol_fetch_windows_x64_d3d11_debug.lib" } }
+            else       { foreign import sokol_fetch_clib { "sokol_fetch_windows_x64_d3d11_release.lib" } }
+        }
+    }
+} else when ODIN_OS == .Darwin {
+    when USE_DLL {
+             when  USE_GL && ODIN_ARCH == .arm64 &&  DEBUG { foreign import sokol_fetch_clib { "../dylib/sokol_dylib_macos_arm64_gl_debug.dylib" } }
+        else when  USE_GL && ODIN_ARCH == .arm64 && !DEBUG { foreign import sokol_fetch_clib { "../dylib/sokol_dylib_macos_arm64_gl_release.dylib" } }
+        else when  USE_GL && ODIN_ARCH == .amd64 &&  DEBUG { foreign import sokol_fetch_clib { "../dylib/sokol_dylib_macos_x64_gl_debug.dylib" } }
+        else when  USE_GL && ODIN_ARCH == .amd64 && !DEBUG { foreign import sokol_fetch_clib { "../dylib/sokol_dylib_macos_x64_gl_release.dylib" } }
+        else when !USE_GL && ODIN_ARCH == .arm64 &&  DEBUG { foreign import sokol_fetch_clib { "../dylib/sokol_dylib_macos_arm64_metal_debug.dylib" } }
+        else when !USE_GL && ODIN_ARCH == .arm64 && !DEBUG { foreign import sokol_fetch_clib { "../dylib/sokol_dylib_macos_arm64_metal_release.dylib" } }
+        else when !USE_GL && ODIN_ARCH == .amd64 &&  DEBUG { foreign import sokol_fetch_clib { "../dylib/sokol_dylib_macos_x64_metal_debug.dylib" } }
+        else when !USE_GL && ODIN_ARCH == .amd64 && !DEBUG { foreign import sokol_fetch_clib { "../dylib/sokol_dylib_macos_x64_metal_release.dylib" } }
+    } else {
+        when USE_GL {
+            when ODIN_ARCH == .arm64 {
+                when DEBUG { foreign import sokol_fetch_clib { "sokol_fetch_macos_arm64_gl_debug.a" } }
+                else       { foreign import sokol_fetch_clib { "sokol_fetch_macos_arm64_gl_release.a" } }
+            } else {
+                when DEBUG { foreign import sokol_fetch_clib { "sokol_fetch_macos_x64_gl_debug.a" } }
+                else       { foreign import sokol_fetch_clib { "sokol_fetch_macos_x64_gl_release.a" } }
+            }
+        } else {
+            when ODIN_ARCH == .arm64 {
+                when DEBUG { foreign import sokol_fetch_clib { "sokol_fetch_macos_arm64_metal_debug.a" } }
+                else       { foreign import sokol_fetch_clib { "sokol_fetch_macos_arm64_metal_release.a" } }
+            } else {
+                when DEBUG { foreign import sokol_fetch_clib { "sokol_fetch_macos_x64_metal_debug.a" } }
+                else       { foreign import sokol_fetch_clib { "sokol_fetch_macos_x64_metal_release.a" } }
+            }
+        }
+    }
+} else when ODIN_OS == .Linux {
+    when USE_DLL {
+        when DEBUG { foreign import sokol_fetch_clib { "sokol_fetch_linux_x64_gl_debug.so" } }
+        else       { foreign import sokol_fetch_clib { "sokol_fetch_linux_x64_gl_release.so" } }
+    } else {
+        when DEBUG { foreign import sokol_fetch_clib { "sokol_fetch_linux_x64_gl_debug.a" } }
+        else       { foreign import sokol_fetch_clib { "sokol_fetch_linux_x64_gl_release.a" } }
+    }
+} else when ODIN_ARCH == .wasm32 || ODIN_ARCH == .wasm64p32 {
+    // Feed sokol_fetch_wasm_gl_debug.a or sokol_fetch_wasm_gl_release.a into emscripten compiler.
+    foreign import sokol_fetch_clib { "env.o" }
+} else {
+    #panic("This OS is currently not supported")
+}

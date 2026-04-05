@@ -1,0 +1,141 @@
+// Inputs can be folders or files. If you provide a folder name, then the generator will look for
+// header (.h) files inside it. The bindings will be based on those headers. For each header,
+// you can create a `header_footer.odin` file with some additional code to append to the finished
+// bindings. If the header is called `raylib.h` then the footer would be `raylib_footer.odin`.
+inputs = [
+	"../c/sokol_fetch.h"
+]
+
+// Output folder. In there you'll find one .odin file per processed header.
+output_folder = "."
+
+// Remove this prefix from types names (structs, enums, etc)
+remove_type_prefix = ""
+
+// Remove this prefix from macro names
+remove_macro_prefix = ""
+
+// Remove this prefix from function names (and add it as link_prefix) to the foreign group
+remove_function_prefix = ""
+
+// Remove this suffix from type names (such as '_t' etc)
+remove_type_suffix = ""
+
+// Set to true translate type names to Ada_Case
+force_ada_case_types = false
+
+// Single lib file to import. Will be ignored if `imports_file` is set.
+// import_lib = "my_lib.lib"
+
+// The filename of a file that contains the foreign import declarations. In it you can do
+// platform-specific library imports etc. The contents of it will  be placed near the top of the
+// file.
+imports_file = "imports.inc"
+
+// `package something` to put at top of each generated Odin binding file.
+package_name = "sokol_fetch"
+
+// "Old_Name" = "New_Name"
+rename = {
+}
+
+// Turns an enum into a bit_set. Converts the values of the enum into appropriate values for a
+// bit_set (translates the enum values using a log2 procedure).
+//
+// Note that the enum will be turned into a bit_set type. There will be a new type created that
+// contains the actual enum, which the bit_set then references.
+bit_setify = {
+	// "Enum_To_Turn_Into_Bitset" = "New_Enum_Type_Name"
+}
+
+// Completely override the definition of a type.
+type_overrides = {
+	// "Vector2" = "[2]f32"
+}
+
+// Override the type of a struct field.
+// 
+// You can also use `[^]` to augment an already existing type.
+struct_field_overrides = {
+	// "Some_Type.some_field" = "My_Type"
+	// "Some_Other_Type.field" = "[^]"
+	// "Some_Other_Type.another_file" = "[^]cstring"
+}
+
+// Put these tags on the specified struct field
+struct_field_tags = {
+	// "BoneInfo.name" = "fmt:\"s,0\""
+}
+
+// Set the #align(some_number) on a given struct
+struct_align = {
+    // "Mesh" = 4
+}
+
+// Remove a specific enum member. Write the C name of the member. You can also use wildcards
+// such as *_Count
+remove_enum_members = [
+	// "MAGICAL_ENUM_ALL"
+	// "_*Count"
+]
+
+// Enums automatically have any prefix that is sharred by all members removed. This sometimes
+// misbehaves for certain names. Use this setting to manually set the perfix to remove for a
+// certain enum type.
+remove_enum_member_prefix = {
+	// "enum type name" = "enum member prefix to strip"
+	// "PixelFormat" = "PIXEL_FORMAT_"
+}
+
+// Overrides the type of a procedure parameter or return value. For a parameter use the key
+// Proc_Name.parameter_name. For a return value use the key Proc_Name.
+//
+// You can also use `[^]`, `#by_ptr` and `#any_int` to augment an already existing type.
+procedure_type_overrides = {
+	// "SetConfigFlags.flags" = "ConfigFlags"
+	// "GetKeyPressed"        = "KeyboardKey"
+}
+
+// Add in a default value to a procedure parameter. Use `Proc_Name.parameter_name` as key and
+// write the plain-text Odin value as value.
+//
+// You can also add defaults for proc parameters within structs. In that case you do:
+// `Struct_Name.proc_field.parameter_name`
+procedure_parameter_defaults = {
+	// "DrawTexturePro.tint" = "RED"
+	// "Some_Struct.a_field_that_is_a_proc.some_parameter" = "5"
+}
+
+// Put the names of declarations in here to remove them.
+remove = [
+	// "Some_Declaration_Name"
+]
+
+// By default anonymous enums have their members flattened into constants.
+// Use this option to instead create a new enum type.
+//
+// The key is the name of the first member of the anonymous enum, which is used
+// to identify it. The value is the name of the emitted enum.
+deanon_enums = {
+	"First_Member_Name" = "New_Enum_Name"
+}
+
+// Constructs a new enum from all macros using a prefix.
+// Combine with bit_setify to make a bit set from macros.
+enumify_macros = {
+	"Macro_Prefix" = "New_Enum_Name"
+},
+
+// Group all procedures at the end of the file.
+procedures_at_end = false
+
+// Additional include paths to send into clang. While generating the bindings clang will look into
+// this path in search for included headers.
+clang_include_paths = [
+	// "include"
+]
+
+// Pass these compiler defines into clang. Can be used to control clang pre-processor
+clang_defines = {
+	// "UFBX_REAL_IS_FLOAT" = "1"
+}

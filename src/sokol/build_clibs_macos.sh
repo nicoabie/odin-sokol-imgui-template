@@ -46,6 +46,7 @@ build_lib_arm64_release sokol_audio       audio/sokol_audio_macos_arm64_metal_re
 build_lib_arm64_release sokol_debugtext   debugtext/sokol_debugtext_macos_arm64_metal_release SOKOL_METAL
 build_lib_arm64_release sokol_shape       shape/sokol_shape_macos_arm64_metal_release SOKOL_METAL
 build_lib_arm64_release sokol_gl          gl/sokol_gl_macos_arm64_metal_release SOKOL_METAL
+build_lib_arm64_release sokol_fetch       fetch/sokol_fetch_macos_arm64_metal_release SOKOL_METAL
 
 # ARM + Metal + Debug
 build_lib_arm64_debug sokol_log           log/sokol_log_macos_arm64_metal_debug SOKOL_METAL
@@ -57,6 +58,7 @@ build_lib_arm64_debug sokol_audio         audio/sokol_audio_macos_arm64_metal_de
 build_lib_arm64_debug sokol_debugtext     debugtext/sokol_debugtext_macos_arm64_metal_debug SOKOL_METAL
 build_lib_arm64_debug sokol_shape         shape/sokol_shape_macos_arm64_metal_debug SOKOL_METAL
 build_lib_arm64_debug sokol_gl            gl/sokol_gl_macos_arm64_metal_debug SOKOL_METAL
+build_lib_arm64_debug sokol_fetch         fetch/sokol_fetch_macos_arm64_metal_debug SOKOL_METAL
 
 # x64 + Metal + Release
 build_lib_x64_release sokol_log         log/sokol_log_macos_x64_metal_release SOKOL_METAL
@@ -68,6 +70,7 @@ build_lib_x64_release sokol_audio       audio/sokol_audio_macos_x64_metal_releas
 build_lib_x64_release sokol_debugtext   debugtext/sokol_debugtext_macos_x64_metal_release SOKOL_METAL
 build_lib_x64_release sokol_shape       shape/sokol_shape_macos_x64_metal_release SOKOL_METAL
 build_lib_x64_release sokol_gl          gl/sokol_gl_macos_x64_metal_release SOKOL_METAL
+build_lib_x64_release sokol_fetch       fetch/sokol_fetch_macos_x64_metal_release SOKOL_METAL
 
 # x64 + Metal + Debug
 build_lib_x64_debug sokol_log           log/sokol_log_macos_x64_metal_debug SOKOL_METAL
@@ -79,6 +82,7 @@ build_lib_x64_debug sokol_audio         audio/sokol_audio_macos_x64_metal_debug 
 build_lib_x64_debug sokol_debugtext     debugtext/sokol_debugtext_macos_x64_metal_debug SOKOL_METAL
 build_lib_x64_debug sokol_shape         shape/sokol_shape_macos_x64_metal_debug SOKOL_METAL
 build_lib_x64_debug sokol_gl            gl/sokol_gl_macos_x64_metal_debug SOKOL_METAL
+build_lib_x64_debug sokol_fetch         fetch/sokol_fetch_macos_x64_metal_debug SOKOL_METAL
 
 # ARM + GL + Release
 build_lib_arm64_release sokol_log         log/sokol_log_macos_arm64_gl_release SOKOL_GLCORE
@@ -90,6 +94,7 @@ build_lib_arm64_release sokol_audio       audio/sokol_audio_macos_arm64_gl_relea
 build_lib_arm64_release sokol_debugtext   debugtext/sokol_debugtext_macos_arm64_gl_release SOKOL_GLCORE
 build_lib_arm64_release sokol_shape       shape/sokol_shape_macos_arm64_gl_release SOKOL_GLCORE
 build_lib_arm64_release sokol_gl          gl/sokol_gl_macos_arm64_gl_release SOKOL_GLCORE
+build_lib_arm64_release sokol_fetch       fetch/sokol_fetch_macos_arm64_gl_release SOKOL_GLCORE
 
 # ARM + GL + Debug
 build_lib_arm64_debug sokol_log           log/sokol_log_macos_arm64_gl_debug SOKOL_GLCORE
@@ -101,6 +106,7 @@ build_lib_arm64_debug sokol_audio         audio/sokol_audio_macos_arm64_gl_debug
 build_lib_arm64_debug sokol_debugtext     debugtext/sokol_debugtext_macos_arm64_gl_debug SOKOL_GLCORE
 build_lib_arm64_debug sokol_shape         shape/sokol_shape_macos_arm64_gl_debug SOKOL_GLCORE
 build_lib_arm64_debug sokol_gl            gl/sokol_gl_macos_arm64_gl_debug SOKOL_GLCORE
+build_lib_arm64_debug sokol_fetch         fetch/sokol_fetch_macos_arm64_gl_debug SOKOL_GLCORE
 
 # x64 + GL + Release
 build_lib_x64_release sokol_log         log/sokol_log_macos_x64_gl_release SOKOL_GLCORE
@@ -112,6 +118,7 @@ build_lib_x64_release sokol_audio       audio/sokol_audio_macos_x64_gl_release S
 build_lib_x64_release sokol_debugtext   debugtext/sokol_debugtext_macos_x64_gl_release SOKOL_GLCORE
 build_lib_x64_release sokol_shape       shape/sokol_shape_macos_x64_gl_release SOKOL_GLCORE
 build_lib_x64_release sokol_gl          gl/sokol_gl_macos_x64_gl_release SOKOL_GLCORE
+build_lib_x64_release sokol_fetch       fetch/sokol_fetch_macos_x64_gl_release SOKOL_GLCORE
 
 # x64 + GL + Debug
 build_lib_x64_debug sokol_log           log/sokol_log_macos_x64_gl_debug SOKOL_GLCORE
@@ -123,5 +130,6 @@ build_lib_x64_debug sokol_audio         audio/sokol_audio_macos_x64_gl_debug SOK
 build_lib_x64_debug sokol_debugtext     debugtext/sokol_debugtext_macos_x64_gl_debug SOKOL_GLCORE
 build_lib_x64_debug sokol_shape         shape/sokol_shape_macos_x64_gl_debug SOKOL_GLCORE
 build_lib_x64_debug sokol_gl            gl/sokol_gl_macos_x64_gl_debug SOKOL_GLCORE
+build_lib_x64_debug sokol_fetch         fetch/sokol_fetch_macos_x64_gl_debug SOKOL_GLCORE
 
 rm *.o
