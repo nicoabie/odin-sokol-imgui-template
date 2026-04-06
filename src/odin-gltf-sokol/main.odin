@@ -8,6 +8,8 @@ import "base:runtime"
 import "core:os/old"
 import "core:math"
 import "core:math/linalg"
+import "core:image"
+import png "core:image/png"
 import "vendor:cgltf"
 import sg "../sokol/gfx"
 import sapp "../sokol/app"
@@ -15,8 +17,10 @@ import sglue "../sokol/glue"
 import slog "../sokol/log"
 import fetch "../sokol/fetch"
 
-gltf_filepath :: "Ferrari.gltf"
-gltf_basepath :: "/Users/nico/Development/delve-framework/assets/meshes/multiple-materials/ferrari/"
+// gltf_filepath :: "Ferrari.gltf"
+// gltf_basepath :: "/Users/nico/Development/delve-framework/assets/meshes/multiple-materials/ferrari/"
+gltf_filepath :: "DamagedHelmet.gltf"
+gltf_basepath :: "/Users/nico/Development/sokol-samples/sapp/data/gltf/DamagedHelmet/"
 
 SCENE_INVALID_INDEX :: -1
 SCENE_MAX_BUFFERS    :: 128
@@ -32,7 +36,7 @@ SCENE_MAX_NODES      :: 16
 SFETCH_NUM_CHANNELS :: 1
 SFETCH_NUM_LANES :: 4
 
-MAX_FILE_SIZE :: 1024 * 1024
+MAX_FILE_SIZE :: 16 * 1024 * 1024
 
 sfetch_buffers: [SFETCH_NUM_CHANNELS][SFETCH_NUM_LANES][MAX_FILE_SIZE]u8
 
@@ -234,7 +238,7 @@ init :: proc "c" () {
 	cam_init(&camera, {
 		latitude = -10.0,
 		longitude = 45.0,
-		distance = 2.5,
+		distance = 5.5,
 	})
 
 	// setup sokol-fetch with 2 channels and 6 lanes per channel,
@@ -256,6 +260,8 @@ init :: proc "c" () {
 			0 = { load_action = .CLEAR, clear_value = {r = 1.0, g = 0.0, b = 0.0, a = 1.0}},
 		},
 	}
+
+	fmt.println("Backend:", sg.query_backend())
 
 	state.shader = sg.make_shader(metallic_shader_desc(sg.query_backend()))
 
@@ -327,6 +333,7 @@ init :: proc "c" () {
 }
 
 gltf_parse :: proc "c" (file_data: fetch.sfetch_range_t) {
+	context = runtime.default_context()
 	options := cgltf.options {}
 	gltf_data, result := cgltf.parse(options, cast([^]u8)(file_data.ptr), uint(file_data.size))
 	if result != .success {
@@ -583,17 +590,41 @@ create_sg_image_samplers_for_gltf_image :: proc "c" (gltf_image_index: i32, data
             // state.scene.images[i].tex_view = sg_make_view(&(sg_view_desc){
             //     .texture = { .image = state.scene.images[i].img },
             // });
-			// PORTED CODE (TODO implement actual basisu decoding):
-			// state.scene.images[i].img = sg.make_image(sg.Image_Desc{
-			// 	width = 1,
-			// 	height = 1,
-			// 	pixel_format = .RGBA8,
-			// 	data = {mip_levels = {0 = data}},
-			// })
+			img_data := (cast([^]u8)(data.ptr))[:data.size]
+			img, err := png.load_from_bytes(img_data)
+			if err == nil {
+				width := img.width
+				height := img.height
+				channels := img.channels
 
-			// state.scene.images[i].tex_view = sg.make_view(sg.View_Desc{
-			// 	texture = { image = state.scene.images[i].img },
-			// })
+				pixel_size := width * height * 4
+				pixels := make([]u8, pixel_size)
+
+				if channels == 4 {
+					copy(pixels, img.pixels.buf[:pixel_size])
+				} else if channels == 3 {
+					for j := 0; j < width * height; j += 1 {
+						pixels[j * 4 + 0] = img.pixels.buf[j * 3 + 0]
+						pixels[j * 4 + 1] = img.pixels.buf[j * 3 + 1]
+						pixels[j * 4 + 2] = img.pixels.buf[j * 3 + 2]
+						pixels[j * 4 + 3] = 255
+					}
+				}
+
+				state.scene.images[i].img = sg.make_image(sg.Image_Desc{
+					width = i32(width),
+					height = i32(height),
+					pixel_format = .RGBA8,
+					data = {mip_levels = {0 = {ptr = &pixels[0], size = uint(pixel_size)}}},
+				})
+
+				state.scene.images[i].tex_view = sg.make_view(sg.View_Desc{
+					texture = { image = state.scene.images[i].img },
+				})
+
+				delete(pixels)
+				png.destroy(img)
+			}
 
 			state.scene.images[i].smp = sg.make_sampler((sg.Sampler_Desc){
 				min_filter = p.min_filter,
@@ -620,6 +651,7 @@ gltf_parse_materials :: proc "c" (gltf: ^cgltf.data) {
 		scene_mat := &state.scene.materials[i]
 
 		scene_mat.is_metallic = bool(gltf_mat.has_pbr_metallic_roughness)
+		fmt.println("Parsing material", i, "is_metallic:", scene_mat.is_metallic)
 
 		if scene_mat.is_metallic {
 			src := &gltf_mat.pbr_metallic_roughness
@@ -633,6 +665,19 @@ gltf_parse_materials :: proc "c" (gltf: ^cgltf.data) {
 			}
 			dst.fs_params.metallic_factor = src.metallic_factor
 			dst.fs_params.roughness_factor = src.roughness_factor
+
+			fmt.println("  Raw - base_color:", dst.fs_params.base_color_factor)
+			fmt.println("  Raw - metallic:", dst.fs_params.metallic_factor, "roughness:", dst.fs_params.roughness_factor)
+
+			if dst.fs_params.metallic_factor == 0.0 {
+				dst.fs_params.metallic_factor = 1.0
+			}
+			if dst.fs_params.roughness_factor == 0.0 {
+				dst.fs_params.roughness_factor = 1.0
+			}
+
+			fmt.println("  Fixed - base_color:", dst.fs_params.base_color_factor)
+			fmt.println("  Fixed - metallic:", dst.fs_params.metallic_factor, "roughness:", dst.fs_params.roughness_factor)
 
 			dst.images.base_color = src.base_color_texture.texture != nil ? i32(cgltf.texture_index(gltf, src.base_color_texture.texture)) : SCENE_INVALID_INDEX
 			dst.images.metallic_roughness = src.metallic_roughness_texture.texture != nil ? i32(cgltf.texture_index(gltf, src.metallic_roughness_texture.texture)) : SCENE_INVALID_INDEX
@@ -913,6 +958,7 @@ build_transform_for_gltf_node :: proc "c" (gltf: ^cgltf.data, node: ^cgltf.node)
 }
 
 frame :: proc "c" () {
+	context = runtime.default_context()
 	fetch.sfetch_dowork()
 
 	state.rx += 0.016
