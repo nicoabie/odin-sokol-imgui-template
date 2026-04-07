@@ -654,11 +654,11 @@ gltf_parse_materials :: proc "c" (gltf: ^cgltf.data) {
 			fmt.println("  Raw - metallic:", dst.fs_params.metallic_factor, "roughness:", dst.fs_params.roughness_factor)
 
 			dst.images = Metallic_Images{
-				base_color = i32(cgltf.texture_index(gltf, src.base_color_texture.texture)),
-				metallic_roughness = i32(cgltf.texture_index(gltf, src.metallic_roughness_texture.texture)),
-				normal = i32(cgltf.texture_index(gltf, gltf_mat.normal_texture.texture)),
-				occlusion = i32(cgltf.texture_index(gltf, gltf_mat.occlusion_texture.texture)),
-				emissive = i32(cgltf.texture_index(gltf, gltf_mat.emissive_texture.texture)),
+				base_color = src.base_color_texture.texture != nil ? i32(cgltf.texture_index(gltf, src.base_color_texture.texture)) : SCENE_INVALID_INDEX,
+				metallic_roughness = src.metallic_roughness_texture.texture != nil ? i32(cgltf.texture_index(gltf, src.metallic_roughness_texture.texture)) : SCENE_INVALID_INDEX,
+				normal = gltf_mat.normal_texture.texture != nil ? i32(cgltf.texture_index(gltf, gltf_mat.normal_texture.texture)) : SCENE_INVALID_INDEX,
+				occlusion = gltf_mat.occlusion_texture.texture != nil ? i32(cgltf.texture_index(gltf, gltf_mat.occlusion_texture.texture)) : SCENE_INVALID_INDEX,
+				emissive = gltf_mat.emissive_texture.texture != nil ? i32(cgltf.texture_index(gltf, gltf_mat.emissive_texture.texture)) : SCENE_INVALID_INDEX,
 			};
 		}
 	}
