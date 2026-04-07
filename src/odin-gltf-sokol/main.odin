@@ -5,11 +5,10 @@ import "core:fmt"
 import "core:c"
 import "core:strings"
 import "base:runtime"
-import "core:os/old"
 import "core:math"
 import "core:math/linalg"
 import "core:image"
-import png "core:image/png"
+import stbi "vendor:stb/image"
 import "vendor:cgltf"
 import sg "../sokol/gfx"
 import sapp "../sokol/app"
@@ -18,10 +17,10 @@ import slog "../sokol/log"
 import fetch "../sokol/fetch"
 import basisu "../sokol/basisu/"
 
-// gltf_filepath :: "Ferrari.gltf"
-// gltf_basepath :: "/Users/nico/Development/delve-framework/assets/meshes/multiple-materials/ferrari/"
-gltf_filepath :: "DamagedHelmet.gltf"
-gltf_basepath :: "/Users/nico/Development/sokol-samples/sapp/data/gltf/DamagedHelmet/"
+gltf_filepath :: "Ferrari.gltf"
+gltf_basepath :: "/Users/nico/Development/delve-framework/assets/meshes/multiple-materials/ferrari/"
+// gltf_filepath :: "DamagedHelmet.gltf"
+// gltf_basepath :: "/Users/nico/Development/sokol-samples/sapp/data/gltf/DamagedHelmet/"
 
 SCENE_INVALID_INDEX :: -1
 SCENE_MAX_BUFFERS    :: 128
@@ -474,6 +473,7 @@ send_image_request :: proc "c" (image_index: i32, uri: cstring) {
 	full_path := strings.concatenate([]string{gltf_basepath, string(uri)})
 	user_data := Image_Fetch_Userdata {
 		image_index = i32(image_index),
+		image_extension = strings.contains(string(uri), ".basis") ?	Image_Extension.BASISU : Image_Extension.OTHER
 	}
 	req := fetch.sfetch_request_t{
 		path = strings.clone_to_cstring(full_path),
@@ -483,8 +483,14 @@ send_image_request :: proc "c" (image_index: i32, uri: cstring) {
 	fetch.sfetch_send(&req)
 }
 
+Image_Extension :: enum i32 {
+    BASISU,
+    OTHER,
+}
+
 Image_Fetch_Userdata :: struct {
 	image_index: i32,
+	image_extension: Image_Extension,
 }
 
 gltf_image_fetch_callback :: proc "c" (response: ^fetch.sfetch_response_t) {
@@ -498,7 +504,8 @@ gltf_image_fetch_callback :: proc "c" (response: ^fetch.sfetch_response_t) {
 	} else if response.fetched {
 		user_data := cast(^Image_Fetch_Userdata)(response.user_data)
 		gltf_image_index := user_data.image_index
-		create_sg_image_samplers_for_gltf_image(gltf_image_index, sg.Range{
+		image_extension := user_data.image_extension
+		create_sg_image_samplers_for_gltf_image(gltf_image_index, image_extension, sg.Range{
 			ptr = response.data.ptr,
 			size = uint(response.data.size),
 		})
@@ -568,51 +575,34 @@ create_sg_buffers_for_gltf_buffer :: proc "c" (gltf_buffer_index: i32, data: sg.
 	}
 }
 
-create_sg_image_samplers_for_gltf_image :: proc "c" (gltf_image_index: i32, data: sg.Range) {
+create_sg_image_samplers_for_gltf_image :: proc "c" (gltf_image_index: i32, image_extension: Image_Extension, data: sg.Range) {
 	context = runtime.default_context()
 	for i in 0..<state.scene.num_images {
 		p := &state.creation_params.images[i]
 		if p.gltf_image_index == gltf_image_index {
-			// ORIGINAL C CODE:
-			state.scene.images[i].img = basisu.make_image(data);
-            state.scene.images[i].tex_view = sg.make_view(sg.View_Desc{
-                texture = { image = state.scene.images[i].img },
-            });
-			// img_data := (cast([^]u8)(data.ptr))[:data.size]
-			// img, err := png.load_from_bytes(img_data)
-			// if err == nil {
-			// 	width := img.width
-			// 	height := img.height
-			// 	channels := img.channels
+			if image_extension == Image_Extension.BASISU {
+				state.scene.images[i].img = basisu.make_image(data);
+				state.scene.images[i].tex_view = sg.make_view(sg.View_Desc{
+				    texture = { image = state.scene.images[i].img },
+				});
+			} else {	
+				width, height, channels_in_file: i32
+				desired_channels : i32 = 4
+				pixels := stbi.load_from_memory(cast([^]byte)(data.ptr), i32(data.size), &width, &height, &channels_in_file, desired_channels)
+				
+				state.scene.images[i].img = sg.make_image(sg.Image_Desc{
+					width = i32(width),
+					height = i32(height),
+					pixel_format = .RGBA8,
+					data = {mip_levels = {0 = {ptr = pixels, size = uint(width * height * desired_channels)}}},
+				})
 
-			// 	pixel_size := width * height * 4
-			// 	pixels := make([]u8, pixel_size)
+				state.scene.images[i].tex_view = sg.make_view(sg.View_Desc{
+					texture = { image = state.scene.images[i].img },
+				})
 
-			// 	if channels == 4 {
-			// 		copy(pixels, img.pixels.buf[:pixel_size])
-			// 	} else if channels == 3 {
-			// 		for j := 0; j < width * height; j += 1 {
-			// 			pixels[j * 4 + 0] = img.pixels.buf[j * 3 + 0]
-			// 			pixels[j * 4 + 1] = img.pixels.buf[j * 3 + 1]
-			// 			pixels[j * 4 + 2] = img.pixels.buf[j * 3 + 2]
-			// 			pixels[j * 4 + 3] = 255
-			// 		}
-			// 	}
-
-			// 	state.scene.images[i].img = sg.make_image(sg.Image_Desc{
-			// 		width = i32(width),
-			// 		height = i32(height),
-			// 		pixel_format = .RGBA8,
-			// 		data = {mip_levels = {0 = {ptr = &pixels[0], size = uint(pixel_size)}}},
-			// 	})
-
-			// 	state.scene.images[i].tex_view = sg.make_view(sg.View_Desc{
-			// 		texture = { image = state.scene.images[i].img },
-			// 	})
-
-			// 	delete(pixels)
-			// 	png.destroy(img)
-			// }
+				stbi.image_free(pixels)
+			}
 
 			state.scene.images[i].smp = sg.make_sampler((sg.Sampler_Desc){
 				min_filter = p.min_filter,
