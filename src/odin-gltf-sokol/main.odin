@@ -214,21 +214,6 @@ cam_handle_event :: proc "c" (cam: ^Camera, ev: ^sapp.Event) {
 	// }
 }
 
-file_buffer: [MAX_FILE_SIZE]u8
-file_buffer_offset: int
-
-custom_alloc :: proc "c" (user_data: rawptr, size: uint) -> rawptr {
-	if file_buffer_offset + int(size) > MAX_FILE_SIZE {
-		return nil
-	}
-	result := rawptr(uintptr(&file_buffer) + uintptr(file_buffer_offset))
-	file_buffer_offset += int(size)
-	return result
-}
-
-custom_free :: proc "c" (user_data: rawptr, ptr: rawptr) {
-}
-
 init :: proc "c" () {
 	context = runtime.default_context()
 	sg.setup({
@@ -239,7 +224,7 @@ init :: proc "c" () {
 	cam_init(&camera, {
 		latitude = -10.0,
 		longitude = 45.0,
-		distance = 5.5,
+		distance = 3.5,
 	})
 
 	// setup sokol-fetch with 2 channels and 6 lanes per channel,
@@ -322,6 +307,8 @@ init :: proc "c" () {
 		min_filter = .NEAREST,
 		mag_filter = .NEAREST,
 	})
+
+	basisu.setup()
 
 	fmt.println("Loading glTF file: ", gltf_filepath)
 
@@ -657,34 +644,22 @@ gltf_parse_materials :: proc "c" (gltf: ^cgltf.data) {
 		if scene_mat.is_metallic {
 			src := &gltf_mat.pbr_metallic_roughness
 			dst := &scene_mat.metallic
-
-			for j in 0..<4 {
-				dst.fs_params.base_color_factor[j] = src.base_color_factor[j]
-			}
-			for j in 0..<3 {
-				dst.fs_params.emissive_factor[j] = gltf_mat.emissive_factor[j]
-			}
+			
+			dst.fs_params.base_color_factor = src.base_color_factor
+			dst.fs_params.emissive_factor = gltf_mat.emissive_factor			
 			dst.fs_params.metallic_factor = src.metallic_factor
 			dst.fs_params.roughness_factor = src.roughness_factor
 
 			fmt.println("  Raw - base_color:", dst.fs_params.base_color_factor)
 			fmt.println("  Raw - metallic:", dst.fs_params.metallic_factor, "roughness:", dst.fs_params.roughness_factor)
 
-			if dst.fs_params.metallic_factor == 0.0 {
-				dst.fs_params.metallic_factor = 1.0
-			}
-			if dst.fs_params.roughness_factor == 0.0 {
-				dst.fs_params.roughness_factor = 1.0
-			}
-
-			fmt.println("  Fixed - base_color:", dst.fs_params.base_color_factor)
-			fmt.println("  Fixed - metallic:", dst.fs_params.metallic_factor, "roughness:", dst.fs_params.roughness_factor)
-
-			dst.images.base_color = src.base_color_texture.texture != nil ? i32(cgltf.texture_index(gltf, src.base_color_texture.texture)) : SCENE_INVALID_INDEX
-			dst.images.metallic_roughness = src.metallic_roughness_texture.texture != nil ? i32(cgltf.texture_index(gltf, src.metallic_roughness_texture.texture)) : SCENE_INVALID_INDEX
-			dst.images.normal = gltf_mat.normal_texture.texture != nil ? i32(cgltf.texture_index(gltf, gltf_mat.normal_texture.texture)) : SCENE_INVALID_INDEX
-			dst.images.occlusion = gltf_mat.occlusion_texture.texture != nil ? i32(cgltf.texture_index(gltf, gltf_mat.occlusion_texture.texture)) : SCENE_INVALID_INDEX
-			dst.images.emissive = gltf_mat.emissive_texture.texture != nil ? i32(cgltf.texture_index(gltf, gltf_mat.emissive_texture.texture)) : SCENE_INVALID_INDEX
+			dst.images = Metallic_Images{
+				base_color = i32(cgltf.texture_index(gltf, src.base_color_texture.texture)),
+				metallic_roughness = i32(cgltf.texture_index(gltf, src.metallic_roughness_texture.texture)),
+				normal = i32(cgltf.texture_index(gltf, gltf_mat.normal_texture.texture)),
+				occlusion = i32(cgltf.texture_index(gltf, gltf_mat.occlusion_texture.texture)),
+				emissive = i32(cgltf.texture_index(gltf, gltf_mat.emissive_texture.texture)),
+			};
 		}
 	}
 }
@@ -955,14 +930,14 @@ build_transform_for_gltf_node :: proc "c" (gltf: ^cgltf.data, node: ^cgltf.node)
 		}
 	}
 
-	return parent_tform * translate * rotate * scale
+	return translate * rotate * scale * parent_tform
 }
 
 frame :: proc "c" () {
 	context = runtime.default_context()
 	fetch.sfetch_dowork()
 
-	state.rx += 0.016
+	// state.rx += 0.016
 	state.root_transform = linalg.matrix4_rotate(state.rx, Vec3{0, 1, 0})
 
 	fb_width := sapp.width()
@@ -1087,6 +1062,7 @@ frame :: proc "c" () {
 }
 
 cleanup :: proc "c" () {
+	basisu.shutdown()
 	fetch.sfetch_shutdown()
 	sg.shutdown()
 }
