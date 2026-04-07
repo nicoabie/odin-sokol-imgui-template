@@ -16,6 +16,7 @@ import sapp "../sokol/app"
 import sglue "../sokol/glue"
 import slog "../sokol/log"
 import fetch "../sokol/fetch"
+import basisu "../sokol/basisu/"
 
 // gltf_filepath :: "Ferrari.gltf"
 // gltf_basepath :: "/Users/nico/Development/delve-framework/assets/meshes/multiple-materials/ferrari/"
@@ -586,45 +587,45 @@ create_sg_image_samplers_for_gltf_image :: proc "c" (gltf_image_index: i32, data
 		p := &state.creation_params.images[i]
 		if p.gltf_image_index == gltf_image_index {
 			// ORIGINAL C CODE:
-			// state.scene.images[i].img = sbasisu_make_image(data);
-            // state.scene.images[i].tex_view = sg_make_view(&(sg_view_desc){
-            //     .texture = { .image = state.scene.images[i].img },
-            // });
-			img_data := (cast([^]u8)(data.ptr))[:data.size]
-			img, err := png.load_from_bytes(img_data)
-			if err == nil {
-				width := img.width
-				height := img.height
-				channels := img.channels
+			state.scene.images[i].img = basisu.make_image(data);
+            state.scene.images[i].tex_view = sg.make_view(sg.View_Desc{
+                texture = { image = state.scene.images[i].img },
+            });
+			// img_data := (cast([^]u8)(data.ptr))[:data.size]
+			// img, err := png.load_from_bytes(img_data)
+			// if err == nil {
+			// 	width := img.width
+			// 	height := img.height
+			// 	channels := img.channels
 
-				pixel_size := width * height * 4
-				pixels := make([]u8, pixel_size)
+			// 	pixel_size := width * height * 4
+			// 	pixels := make([]u8, pixel_size)
 
-				if channels == 4 {
-					copy(pixels, img.pixels.buf[:pixel_size])
-				} else if channels == 3 {
-					for j := 0; j < width * height; j += 1 {
-						pixels[j * 4 + 0] = img.pixels.buf[j * 3 + 0]
-						pixels[j * 4 + 1] = img.pixels.buf[j * 3 + 1]
-						pixels[j * 4 + 2] = img.pixels.buf[j * 3 + 2]
-						pixels[j * 4 + 3] = 255
-					}
-				}
+			// 	if channels == 4 {
+			// 		copy(pixels, img.pixels.buf[:pixel_size])
+			// 	} else if channels == 3 {
+			// 		for j := 0; j < width * height; j += 1 {
+			// 			pixels[j * 4 + 0] = img.pixels.buf[j * 3 + 0]
+			// 			pixels[j * 4 + 1] = img.pixels.buf[j * 3 + 1]
+			// 			pixels[j * 4 + 2] = img.pixels.buf[j * 3 + 2]
+			// 			pixels[j * 4 + 3] = 255
+			// 		}
+			// 	}
 
-				state.scene.images[i].img = sg.make_image(sg.Image_Desc{
-					width = i32(width),
-					height = i32(height),
-					pixel_format = .RGBA8,
-					data = {mip_levels = {0 = {ptr = &pixels[0], size = uint(pixel_size)}}},
-				})
+			// 	state.scene.images[i].img = sg.make_image(sg.Image_Desc{
+			// 		width = i32(width),
+			// 		height = i32(height),
+			// 		pixel_format = .RGBA8,
+			// 		data = {mip_levels = {0 = {ptr = &pixels[0], size = uint(pixel_size)}}},
+			// 	})
 
-				state.scene.images[i].tex_view = sg.make_view(sg.View_Desc{
-					texture = { image = state.scene.images[i].img },
-				})
+			// 	state.scene.images[i].tex_view = sg.make_view(sg.View_Desc{
+			// 		texture = { image = state.scene.images[i].img },
+			// 	})
 
-				delete(pixels)
-				png.destroy(img)
-			}
+			// 	delete(pixels)
+			// 	png.destroy(img)
+			// }
 
 			state.scene.images[i].smp = sg.make_sampler((sg.Sampler_Desc){
 				min_filter = p.min_filter,
