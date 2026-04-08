@@ -29,7 +29,7 @@ SCENE_MAX_MATERIALS  :: 32
 SCENE_MAX_PIPELINES  :: 16
 SCENE_MAX_PRIMITIVES :: 32
 SCENE_MAX_MESHES     :: 16
-SCENE_MAX_NODES      :: 16
+SCENE_MAX_NODES      :: 32
 
 
 // statically allocated buffers for file downloads
@@ -796,14 +796,15 @@ create_sg_layout_for_gltf_primitive :: proc "c" (gltf: ^cgltf.data, prim: ^cgltf
 
 		if attr_slot != SCENE_INVALID_INDEX {
 			layout.attrs[attr_slot].format = gltf_to_vertex_format(attr.data)
-		}
-
-		buffer_view_index := i32(cgltf.buffer_view_index(gltf, attr.data.buffer_view))
-		for vb_slot in 0..<vbuf_map.num {
-			if vbuf_map.buffer[vb_slot] == buffer_view_index {
-				layout.attrs[attr_slot].buffer_index = i32(vb_slot)
+			
+			buffer_view_index := i32(cgltf.buffer_view_index(gltf, attr.data.buffer_view))
+			for vb_slot in 0..<vbuf_map.num {
+				if vbuf_map.buffer[vb_slot] == buffer_view_index {
+					layout.attrs[attr_slot].buffer_index = i32(vb_slot)
+				}
 			}
 		}
+
 	}
 
 	return layout
