@@ -221,9 +221,9 @@ init :: proc "c" () {
 	})
 
 	cam_init(&camera, {
-		latitude = -10.0,
-		longitude = 45.0,
-		distance = 3.5,
+		latitude = 25.0,
+		longitude = 0.0,
+		distance = 8.5,
 	})
 
 	// setup sokol-fetch with 2 channels and 6 lanes per channel,
@@ -370,6 +370,10 @@ gltf_parse_buffers :: proc "c" (gltf: ^cgltf.data) {
 		p.offset = i32(gltf_buf_view.offset)
 		p.size = i32(gltf_buf_view.size)
 
+		// it may be the case that bufferView does not have a target,
+		// in that case we have to inspect the accessors that reference this bufferView to determine the usage 
+		// We are not doing that yet so it will break.
+		// TODO fix this by inspecting accessors and determining usage based on that, for now we just assume it's a vertex buffer
 		if gltf_buf_view.type == .indices {
 			p.usage.index_buffer = true
 		} else {
@@ -977,64 +981,47 @@ frame :: proc "c" () {
 				sg.apply_uniforms(UB_light_params, sg.Range{&state.point_light, size_of(state.point_light)})
 
 				if mat.is_metallic {
-					base_color_idx := mat.metallic.images.base_color
-					metallic_roughness_idx := mat.metallic.images.metallic_roughness
-					normal_idx := mat.metallic.images.normal
-					occlusion_idx := mat.metallic.images.occlusion
-					emissive_idx := mat.metallic.images.emissive
+					base_color_tex := mat.metallic.images.base_color == -1 ? state.placeholders.white : state.scene.images[mat.metallic.images.base_color].tex_view
+					base_color_smp := mat.metallic.images.base_color == -1 ? state.placeholders.smp : state.scene.images[mat.metallic.images.base_color].smp
+					metallic_roughness_tex := mat.metallic.images.metallic_roughness == -1 ? state.placeholders.white : state.scene.images[mat.metallic.images.metallic_roughness].tex_view
+					metallic_roughness_smp := mat.metallic.images.metallic_roughness == -1 ? state.placeholders.smp : state.scene.images[mat.metallic.images.metallic_roughness].smp
+					normal_tex := mat.metallic.images.normal == -1 ? state.placeholders.normal : state.scene.images[mat.metallic.images.normal].tex_view
+					normal_smp := mat.metallic.images.normal == -1 ? state.placeholders.smp : state.scene.images[mat.metallic.images.normal].smp
+					occlusion_tex := mat.metallic.images.occlusion == -1 ? state.placeholders.black : state.scene.images[mat.metallic.images.occlusion].tex_view
+					occlusion_smp := mat.metallic.images.occlusion == -1 ? state.placeholders.smp : state.scene.images[mat.metallic.images.occlusion].smp
+					emissive_tex := mat.metallic.images.emissive == -1 ? state.placeholders.black : state.scene.images[mat.metallic.images.emissive].tex_view
+					emissive_smp := mat.metallic.images.emissive == -1 ? state.placeholders.smp : state.scene.images[mat.metallic.images.emissive].smp
 
-					base_color_tex := sg.View{}
-					metallic_roughness_tex := sg.View{}
-					normal_tex := sg.View{}
-					occlusion_tex := sg.View{}
-					emissive_tex := sg.View{}
-
-					base_color_smp := sg.Sampler{}
-					metallic_roughness_smp := sg.Sampler{}
-					normal_smp := sg.Sampler{}
-					occlusion_smp := sg.Sampler{}
-					emissive_smp := sg.Sampler{}
-
-					if base_color_idx >= 0 && base_color_idx < state.scene.num_images {
-						base_color_tex = state.scene.images[base_color_idx].tex_view
-						base_color_smp = state.scene.images[base_color_idx].smp
-					}
-					if metallic_roughness_idx >= 0 && metallic_roughness_idx < state.scene.num_images {
-						metallic_roughness_tex = state.scene.images[metallic_roughness_idx].tex_view
-						metallic_roughness_smp = state.scene.images[metallic_roughness_idx].smp
-					}
-					if normal_idx >= 0 && normal_idx < state.scene.num_images {
-						normal_tex = state.scene.images[normal_idx].tex_view
-						normal_smp = state.scene.images[normal_idx].smp
-					}
-					if occlusion_idx >= 0 && occlusion_idx < state.scene.num_images {
-						occlusion_tex = state.scene.images[occlusion_idx].tex_view
-						occlusion_smp = state.scene.images[occlusion_idx].smp
-					}
-					if emissive_idx >= 0 && emissive_idx < state.scene.num_images {
-						emissive_tex = state.scene.images[emissive_idx].tex_view
-						emissive_smp = state.scene.images[emissive_idx].smp
+					// these have not loaded yet, so we need to bind placeholders and update them once they are loaded, otherwise the pipeline will be incomplete and will crash
+					// TODO Nico: we should ideally not bind the pipeline until all resources are ready, but for now we will just bind placeholders and update them once the real resources are loaded, this is not ideal but it works
+					if (base_color_tex.id == 0) {
+						fmt.println("Warning: base color texture for material", prim.material, "is not valid, using white placeholder")
+						base_color_tex = state.placeholders.white;
+						base_color_smp = state.placeholders.smp;
 					}
 
-					if base_color_tex.id == 0 {
-						base_color_tex = state.placeholders.white
-						base_color_smp = state.placeholders.smp
+					if (metallic_roughness_tex.id == 0) {
+						fmt.println("Warning: metallic-roughness texture for material", prim.material, "is not valid, using white placeholder")
+						metallic_roughness_tex = state.placeholders.white;
+						metallic_roughness_smp = state.placeholders.smp;
 					}
-					if metallic_roughness_tex.id == 0 {
-						metallic_roughness_tex = state.placeholders.white
-						metallic_roughness_smp = state.placeholders.smp
+
+					if (normal_tex.id == 0) {
+						fmt.println("Warning: normal texture for material", prim.material, "is not valid, using normal placeholder")
+						normal_tex = state.placeholders.normal;
+						normal_smp = state.placeholders.smp;
 					}
-					if normal_tex.id == 0 {
-						normal_tex = state.placeholders.normal
-						normal_smp = state.placeholders.smp
+
+					if (occlusion_tex.id == 0) {
+						fmt.println("Warning: occlusion texture for material", prim.material, "is not valid, using black placeholder")
+						occlusion_tex = state.placeholders.black;
+						occlusion_smp = state.placeholders.smp;
 					}
-					if occlusion_tex.id == 0 {
-						occlusion_tex = state.placeholders.white
-						occlusion_smp = state.placeholders.smp
-					}
-					if emissive_tex.id == 0 {
-						emissive_tex = state.placeholders.black
-						emissive_smp = state.placeholders.smp
+
+					if (emissive_tex.id == 0) {
+						fmt.println("Warning: emissive texture for material", prim.material, "is not valid, using black placeholder")
+						emissive_tex = state.placeholders.black;
+						emissive_smp = state.placeholders.smp;
 					}
 
 					bind.views[VIEW_base_color_tex] = base_color_tex
