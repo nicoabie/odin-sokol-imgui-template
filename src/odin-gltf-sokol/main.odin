@@ -790,9 +790,14 @@ create_vertex_buffer_mapping_for_gltf_primitive :: proc "c" (gltf: ^cgltf.data, 
 create_sg_layout_for_gltf_primitive :: proc "c" (gltf: ^cgltf.data, prim: ^cgltf.primitive, vbuf_map: ^Vertex_Buffer_Mapping) -> sg.Vertex_Layout_State {
 	layout: sg.Vertex_Layout_State
 
+	textcoord_missing := true
 	for attr_index in 0..<len(prim.attributes) {
 		attr := &prim.attributes[attr_index]
 		attr_slot := gltf_attr_type_to_vs_input_slot(attr.type)
+
+		if (attr.type == .texcoord) {
+			textcoord_missing = false
+		}
 
 		if attr_slot != SCENE_INVALID_INDEX {
 			layout.attrs[attr_slot].format = gltf_to_vertex_format(attr.data)
@@ -804,7 +809,12 @@ create_sg_layout_for_gltf_primitive :: proc "c" (gltf: ^cgltf.data, prim: ^cgltf
 				}
 			}
 		}
+	}
 
+	if (textcoord_missing) {
+		layout.attrs[ATTR_metallic_texcoord].format = .FLOAT2
+		// TODO Nico create a dummy vertex buffer with zeroes for texcoords and bind it here
+		// layout.attrs[ATTR_metallic_texcoord].buffer_index = DUMMY_TEXCOORD_BUFFER_SLOT
 	}
 
 	return layout
