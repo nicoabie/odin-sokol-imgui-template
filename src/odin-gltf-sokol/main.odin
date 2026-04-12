@@ -17,10 +17,12 @@ import slog "../sokol/log"
 import fetch "../sokol/fetch"
 import basisu "../sokol/basisu/"
 
-gltf_filepath :: "Ferrari.gltf"
-gltf_basepath :: "/Users/nico/Development/delve-framework/assets/meshes/multiple-materials/ferrari/"
-// gltf_filepath :: "DamagedHelmet.gltf"
-// gltf_basepath :: "/Users/nico/Development/sokol-samples/sapp/data/gltf/DamagedHelmet/"
+// gltf_filepath :: "Ferrari.gltf"
+// gltf_basepath :: "/Users/nico/Development/delve-framework/assets/meshes/multiple-materials/ferrari/"
+ gltf_filepath :: "DamagedHelmet.gltf"
+ gltf_basepath :: "/Users/nico/Development/sokol-samples/sapp/data/gltf/DamagedHelmet/"
+// gltf_filepath :: "Box With Spaces.gltf"
+// gltf_basepath :: "/Users/nico/Development/odin-sokol-imgui-template/src/odin-gltf-sokol/models/"
 
 SCENE_INVALID_INDEX :: -1
 SCENE_MAX_BUFFERS    :: 128
@@ -324,6 +326,7 @@ gltf_parse :: proc "c" (file_data: fetch.sfetch_range_t) {
 	options := cgltf.options {}
 	gltf_data, result := cgltf.parse(options, cast([^]u8)(file_data.ptr), uint(file_data.size))
 	if result != .success {
+		fmt.println("Failed to parse glTF file, error code:", result)
 		state.failed = true
 		return
 	}
@@ -449,19 +452,12 @@ gltf_parse_images :: proc "c" (gltf: ^cgltf.data) {
 			p.gltf_image_index = -1
 		}
 
-		if gltf_tex.sampler != nil {
-			p.min_filter = gltf_to_sg_min_filter(gltf_tex.sampler.min_filter)
-			p.mag_filter = gltf_to_sg_mag_filter(gltf_tex.sampler.mag_filter)
-			p.mipmap_filter = gltf_to_sg_mipmap_filter(gltf_tex.sampler.min_filter)
-			p.wrap_s = gltf_to_sg_wrap(gltf_tex.sampler.wrap_s)
-			p.wrap_t = gltf_to_sg_wrap(gltf_tex.sampler.wrap_t)
-		} else {
-			p.min_filter = .LINEAR
-			p.mag_filter = .LINEAR
-			p.mipmap_filter = .LINEAR
-			p.wrap_s = .REPEAT
-			p.wrap_t = .REPEAT
-		}
+		p.min_filter = gltf_tex.sampler != nil ? gltf_to_sg_min_filter(gltf_tex.sampler.min_filter) : .LINEAR
+		p.mag_filter = gltf_tex.sampler != nil ? gltf_to_sg_mag_filter(gltf_tex.sampler.mag_filter) : .LINEAR
+		p.mipmap_filter = gltf_tex.sampler != nil ? gltf_to_sg_mipmap_filter(gltf_tex.sampler.min_filter) : .LINEAR
+		p.wrap_s = gltf_tex.sampler != nil ? gltf_to_sg_wrap(gltf_tex.sampler.wrap_s) : .REPEAT
+		p.wrap_t = gltf_tex.sampler != nil ? gltf_to_sg_wrap(gltf_tex.sampler.wrap_t) : .REPEAT
+		
 	}
 
 	for i in 0..<len(gltf.images) {
@@ -981,59 +977,59 @@ frame :: proc "c" () {
 				sg.apply_uniforms(UB_light_params, sg.Range{&state.point_light, size_of(state.point_light)})
 
 				if mat.is_metallic {
-					base_color_tex := mat.metallic.images.base_color == -1 ? state.placeholders.white : state.scene.images[mat.metallic.images.base_color].tex_view
-					base_color_smp := mat.metallic.images.base_color == -1 ? state.placeholders.smp : state.scene.images[mat.metallic.images.base_color].smp
-					metallic_roughness_tex := mat.metallic.images.metallic_roughness == -1 ? state.placeholders.white : state.scene.images[mat.metallic.images.metallic_roughness].tex_view
-					metallic_roughness_smp := mat.metallic.images.metallic_roughness == -1 ? state.placeholders.smp : state.scene.images[mat.metallic.images.metallic_roughness].smp
-					normal_tex := mat.metallic.images.normal == -1 ? state.placeholders.normal : state.scene.images[mat.metallic.images.normal].tex_view
-					normal_smp := mat.metallic.images.normal == -1 ? state.placeholders.smp : state.scene.images[mat.metallic.images.normal].smp
-					occlusion_tex := mat.metallic.images.occlusion == -1 ? state.placeholders.black : state.scene.images[mat.metallic.images.occlusion].tex_view
-					occlusion_smp := mat.metallic.images.occlusion == -1 ? state.placeholders.smp : state.scene.images[mat.metallic.images.occlusion].smp
-					emissive_tex := mat.metallic.images.emissive == -1 ? state.placeholders.black : state.scene.images[mat.metallic.images.emissive].tex_view
-					emissive_smp := mat.metallic.images.emissive == -1 ? state.placeholders.smp : state.scene.images[mat.metallic.images.emissive].smp
+					base_color_tex : Maybe(sg.View) = mat.metallic.images.base_color == -1 ? nil : state.scene.images[mat.metallic.images.base_color].tex_view
+					base_color_smp : Maybe(sg.Sampler) = mat.metallic.images.base_color == -1 ? nil : state.scene.images[mat.metallic.images.base_color].smp
+					metallic_roughness_tex : Maybe(sg.View) = mat.metallic.images.metallic_roughness == -1 ? nil : state.scene.images[mat.metallic.images.metallic_roughness].tex_view
+					metallic_roughness_smp : Maybe(sg.Sampler) = mat.metallic.images.metallic_roughness == -1 ? nil : state.scene.images[mat.metallic.images.metallic_roughness].smp
+					normal_tex : Maybe(sg.View) = mat.metallic.images.normal == -1 ? nil : state.scene.images[mat.metallic.images.normal].tex_view
+					normal_smp : Maybe(sg.Sampler) = mat.metallic.images.normal == -1 ? nil : state.scene.images[mat.metallic.images.normal].smp
+					occlusion_tex : Maybe(sg.View) = mat.metallic.images.occlusion == -1 ? nil : state.scene.images[mat.metallic.images.occlusion].tex_view
+					occlusion_smp : Maybe(sg.Sampler) = mat.metallic.images.occlusion == -1 ? nil : state.scene.images[mat.metallic.images.occlusion].smp
+					emissive_tex : Maybe(sg.View) = mat.metallic.images.emissive == -1 ? nil : state.scene.images[mat.metallic.images.emissive].tex_view
+					emissive_smp : Maybe(sg.Sampler) = mat.metallic.images.emissive == -1 ? nil : state.scene.images[mat.metallic.images.emissive].smp
 
 					// these have not loaded yet, so we need to bind placeholders and update them once they are loaded, otherwise the pipeline will be incomplete and will crash
 					// TODO Nico: we should ideally not bind the pipeline until all resources are ready, but for now we will just bind placeholders and update them once the real resources are loaded, this is not ideal but it works
-					if (base_color_tex.id == 0) {
+					if (base_color_tex == nil || base_color_tex.?.id == 0) {
 						fmt.println("Warning: base color texture for material", prim.material, "is not valid, using white placeholder")
 						base_color_tex = state.placeholders.white;
 						base_color_smp = state.placeholders.smp;
 					}
 
-					if (metallic_roughness_tex.id == 0) {
+					if (metallic_roughness_tex == nil || metallic_roughness_tex.?.id == 0) {
 						fmt.println("Warning: metallic-roughness texture for material", prim.material, "is not valid, using white placeholder")
 						metallic_roughness_tex = state.placeholders.white;
 						metallic_roughness_smp = state.placeholders.smp;
 					}
 
-					if (normal_tex.id == 0) {
+					if (normal_tex == nil || normal_tex.?.id == 0) {
 						fmt.println("Warning: normal texture for material", prim.material, "is not valid, using normal placeholder")
 						normal_tex = state.placeholders.normal;
 						normal_smp = state.placeholders.smp;
 					}
 
-					if (occlusion_tex.id == 0) {
+					if (occlusion_tex == nil || occlusion_tex.?.id == 0) {
 						fmt.println("Warning: occlusion texture for material", prim.material, "is not valid, using black placeholder")
 						occlusion_tex = state.placeholders.black;
 						occlusion_smp = state.placeholders.smp;
 					}
 
-					if (emissive_tex.id == 0) {
+					if (emissive_tex == nil || emissive_tex.?.id == 0) {
 						fmt.println("Warning: emissive texture for material", prim.material, "is not valid, using black placeholder")
 						emissive_tex = state.placeholders.black;
 						emissive_smp = state.placeholders.smp;
 					}
 
-					bind.views[VIEW_base_color_tex] = base_color_tex
-					bind.views[VIEW_metallic_roughness_tex] = metallic_roughness_tex
-					bind.views[VIEW_normal_tex] = normal_tex
-					bind.views[VIEW_occlusion_tex] = occlusion_tex
-					bind.views[VIEW_emissive_tex] = emissive_tex
-					bind.samplers[SMP_base_color_smp] = base_color_smp
-					bind.samplers[SMP_metallic_roughness_smp] = metallic_roughness_smp
-					bind.samplers[SMP_normal_smp] = normal_smp
-					bind.samplers[SMP_occlusion_smp] = occlusion_smp
-					bind.samplers[SMP_emissive_smp] = emissive_smp
+					bind.views[VIEW_base_color_tex] = base_color_tex.?
+					bind.views[VIEW_metallic_roughness_tex] = metallic_roughness_tex.?
+					bind.views[VIEW_normal_tex] = normal_tex.?
+					bind.views[VIEW_occlusion_tex] = occlusion_tex.?
+					bind.views[VIEW_emissive_tex] = emissive_tex.?
+					bind.samplers[SMP_base_color_smp] = base_color_smp.?
+					bind.samplers[SMP_metallic_roughness_smp] = metallic_roughness_smp.?
+					bind.samplers[SMP_normal_smp] = normal_smp.?
+					bind.samplers[SMP_occlusion_smp] = occlusion_smp.?
+					bind.samplers[SMP_emissive_smp] = emissive_smp.?
 
 					sg.apply_uniforms(UB_metallic_params, sg.Range{&mat.metallic.fs_params, size_of(mat.metallic.fs_params)})
 				}
