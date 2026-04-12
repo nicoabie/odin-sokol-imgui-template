@@ -121,6 +121,7 @@ Image_Sampler_Creation_Params :: struct {
 	wrap_s:             sg.Wrap,
 	wrap_t:             sg.Wrap,
 	gltf_image_index:   i32,
+	has_basisu:         bool,
 }
 
 Pipeline_Cache_Params :: struct {
@@ -445,13 +446,9 @@ gltf_parse_images :: proc "c" (gltf: ^cgltf.data) {
 	for i in 0..<state.scene.num_images {
 		gltf_tex := &gltf.textures[i]
 		p := &state.creation_params.images[i]
-
-		if gltf_tex.image_ != nil {
-			p.gltf_image_index = i32(cgltf.image_index(gltf, gltf_tex.image_))
-		} else {
-			p.gltf_image_index = -1
-		}
-
+		p.gltf_image_index = i32(cgltf.image_index(gltf, gltf_tex.image_))
+		assert(p.gltf_image_index >= 0)
+		p.has_basisu = strings.contains(string(gltf_tex.image_.uri), ".basis")
 		p.min_filter = gltf_tex.sampler != nil ? gltf_to_sg_min_filter(gltf_tex.sampler.min_filter) : .LINEAR
 		p.mag_filter = gltf_tex.sampler != nil ? gltf_to_sg_mag_filter(gltf_tex.sampler.mag_filter) : .LINEAR
 		p.mipmap_filter = gltf_tex.sampler != nil ? gltf_to_sg_mipmap_filter(gltf_tex.sampler.min_filter) : .LINEAR
@@ -472,8 +469,7 @@ send_image_request :: proc "c" (image_index: i32, uri: cstring) {
 	context = runtime.default_context()
 	full_path := strings.concatenate([]string{gltf_basepath, string(uri)})
 	user_data := Image_Fetch_Userdata {
-		image_index = i32(image_index),
-		image_extension = strings.contains(string(uri), ".basis") ?	Image_Extension.BASISU : Image_Extension.OTHER
+		image_index = i32(image_index)
 	}
 	req := fetch.sfetch_request_t{
 		path = strings.clone_to_cstring(full_path),
@@ -483,14 +479,8 @@ send_image_request :: proc "c" (image_index: i32, uri: cstring) {
 	fetch.sfetch_send(&req)
 }
 
-Image_Extension :: enum i32 {
-    BASISU,
-    OTHER,
-}
-
 Image_Fetch_Userdata :: struct {
-	image_index: i32,
-	image_extension: Image_Extension,
+	image_index: i32
 }
 
 gltf_image_fetch_callback :: proc "c" (response: ^fetch.sfetch_response_t) {
@@ -504,8 +494,7 @@ gltf_image_fetch_callback :: proc "c" (response: ^fetch.sfetch_response_t) {
 	} else if response.fetched {
 		user_data := cast(^Image_Fetch_Userdata)(response.user_data)
 		gltf_image_index := user_data.image_index
-		image_extension := user_data.image_extension
-		create_sg_image_samplers_for_gltf_image(gltf_image_index, image_extension, sg.Range{
+		create_sg_image_samplers_for_gltf_image(gltf_image_index, sg.Range{
 			ptr = response.data.ptr,
 			size = uint(response.data.size),
 		})
@@ -575,12 +564,12 @@ create_sg_buffers_for_gltf_buffer :: proc "c" (gltf_buffer_index: i32, data: sg.
 	}
 }
 
-create_sg_image_samplers_for_gltf_image :: proc "c" (gltf_image_index: i32, image_extension: Image_Extension, data: sg.Range) {
+create_sg_image_samplers_for_gltf_image :: proc "c" (gltf_image_index: i32, data: sg.Range) {
 	context = runtime.default_context()
 	for i in 0..<state.scene.num_images {
 		p := &state.creation_params.images[i]
 		if p.gltf_image_index == gltf_image_index {
-			if image_extension == Image_Extension.BASISU {
+			if p.has_basisu {
 				state.scene.images[i].img = basisu.make_image(data);
 				state.scene.images[i].tex_view = sg.make_view(sg.View_Desc{
 				    texture = { image = state.scene.images[i].img },
