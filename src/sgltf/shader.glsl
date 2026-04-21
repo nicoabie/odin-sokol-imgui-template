@@ -4,7 +4,7 @@
     https://github.com/KhronosGroup/glTF-Sample-Viewer/tree/master/src/shaders
  */
 
-@header package odin_gltf_sokol
+@header package sgltf
 @header import sg "../sokol/gfx"
 @header import "core:math/linalg"
 

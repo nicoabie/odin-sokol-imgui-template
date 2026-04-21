@@ -1,11 +1,11 @@
-package gltf_sokol
+package sgltf
 
 import "core:strings"
 import "vendor:cgltf"
 import "core:math/linalg"
 import stbi "vendor:stb/image"
-import basisu "../../sokol/basisu/"
-import sg "../../sokol/gfx"
+import basisu "../sokol/basisu/"
+import sg "../sokol/gfx"
 
 Vec3 :: linalg.Vector3f32
 Vec4 :: linalg.Vector4f32
@@ -19,28 +19,6 @@ SCENE_MAX_PIPELINES  :: 16
 SCENE_MAX_PRIMITIVES :: 128
 SCENE_MAX_MESHES     :: 16
 SCENE_MAX_NODES      :: 32
-
-// TODO Galli
-// this is a convention in this library.
-// maybe there can be later a config step before transforming the gltf into sokol resources where the user can specify the vertex attribute slots for position, normal and texcoord
-ATTR_metallic_position :: 0
-ATTR_metallic_normal :: 1
-ATTR_metallic_texcoord :: 2
-
-// TODO GAlli taken from shader, this must be a convention and should be renamed to Material_Params or something like that
-// should be defined in a shared header that is included in the shader and here to avoid mismatches
-Metallic_Params :: struct #align(16) {
-    using _: struct #packed {
-        base_color_factor: linalg.Vector4f32,
-        specular_color_factor: linalg.Vector3f32,
-        _: [4]u8,
-        emissive_factor: linalg.Vector3f32,
-        specular_factor: f32,
-        metallic_factor: f32,
-        roughness_factor: f32,
-        _: [8]u8,
-    },
-}
 
 Matrix :: linalg.Matrix4f32
 

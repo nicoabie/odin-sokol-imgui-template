@@ -6,3 +6,7 @@
 *.dSYM
 *.bin
 *.a
+
+models/ferrari/
+models/ferrari_b/
+!models/*.bin
