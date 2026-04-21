@@ -14,15 +14,14 @@ import "core:testing"
 
 TorqueCurvePoint :: struct {
     // rpm is in rev/min
-	rpm: int,
+	rpm: f64,
     // torque is in Nm
-    torque: int,
-
+    torque: f64,
 }
 
 // The engine produces torque, not force and not power directly.
 // Engine torque depends on RPM, and the relationship is defined by the torque curve.
-get_torque_for_rpm :: proc (curve: ^[dynamic]TorqueCurvePoint, rpm: int) -> int {
+get_torque_for_rpm :: proc (curve: ^[dynamic]TorqueCurvePoint, rpm: f64) -> f64 {
     prev_point : TorqueCurvePoint
     post_point : TorqueCurvePoint
     for point in curve {
@@ -51,7 +50,33 @@ get_torque_for_rpm_test :: proc(t: ^testing.T) {
     append(&torque_curve, TorqueCurvePoint{rpm = 15000, torque = 500})
 
     // linear interpolation between 4000 and 8000 rpm
-    testing.expect_value(t, get_torque_for_rpm(&torque_curve, 5000), 262)
+    testing.expect_value(t, get_torque_for_rpm(&torque_curve, 5000), 262.5)
     testing.expect_value(t, get_torque_for_rpm(&torque_curve, 12000), 600)
     testing.expect_value(t, get_torque_for_rpm(&torque_curve, 15000), 500)
+}
+
+// Throttling:
+// throttle is a value between 0 and 1 that represents how much the driver is pressing the accelerator pedal.
+// the engine produces torque based on the throttle input and the current RPM.
+// the relationship between throttle and torque is not linear, but for simplicity we can model it as torque = throttle * get_torque_for_rpm(curve, rpm)
+
+
+EngineContext :: struct {
+    torque_curve: ^[dynamic]TorqueCurvePoint,
+    moment_of_inertia: f64, // kg*m^2
+}
+
+EngineState :: struct {
+    // rpm is in rev/min
+    rpm: f64,
+    gear: int,
+}
+
+// https://chatgpt.com/share/69c3d9c0-9420-83e9-9f31-45179b60b351
+
+get_next_engine_state :: proc (engine_context: ^EngineContext, state: ^EngineState, throttle: f64, delta_time: f64) -> EngineState {
+    torque = throttle * get_torque_for_rpm(engine_context.torque_curve, state.rpm)
+    angular_acceleration = torque / engine_context.moment_of_inertia
+    new_rpm = state.rpm + angular_acceleration * delta_time * 60 / (2 * 3.14159) // convert rad/s^2 to rpm/s
+    return EngineState{rpm = new_rpm, gear = state.gear}
 }
