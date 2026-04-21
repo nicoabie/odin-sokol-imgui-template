@@ -33,6 +33,8 @@ Metallic_Params :: struct #align(16) {
     using _: struct #packed {
         base_color_factor: linalg.Vector4f32,
         specular_color_factor: linalg.Vector3f32,
+        _: [4]u8,
+        emissive_factor: linalg.Vector3f32,
         specular_factor: f32,
         metallic_factor: f32,
         roughness_factor: f32,
@@ -602,7 +604,7 @@ gltf_parse_materials :: proc (gltf: ^cgltf.data, scene: ^Scene) -> ParseMaterial
 			dst := &scene_mat.metallic
 			
 			dst.fs_params.base_color_factor = src.base_color_factor
-			// dst.fs_params.emissive_factor = gltf_mat.emissive_factor			
+			dst.fs_params.emissive_factor = gltf_mat.emissive_factor			
 			dst.fs_params.metallic_factor = src.metallic_factor
 			dst.fs_params.roughness_factor = src.roughness_factor
 			dst.fs_params.specular_factor = gltf_mat.specular.specular_factor

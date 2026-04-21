@@ -17,12 +17,30 @@ import fetch "../sokol/fetch"
 import basisu "../sokol/basisu/"
 import sgltf "gltf-sokol"
 
-gltf_filepath :: "Ferrari.gltf"
-gltf_basepath :: "/Users/nico/Development/delve-framework/assets/meshes/multiple-materials/ferrari/"
+Gltf_Input :: struct {
+	filepath: string,
+	basepath: string,
+	shader_desc_fn: proc "c"(backend: sg.Backend) -> sg.Shader_Desc,
+}
+
+gltf_input : Gltf_Input = {
+	filepath = "Ferrari.gltf",
+	basepath = "/Users/nico/Development/delve-framework/assets/meshes/multiple-materials/ferrari/",
+	shader_desc_fn = acc_shader_desc,
+}
+
+// gltf_input : Gltf_Input = {
+// 	filepath = "DamagedHelmet.gltf",
+// 	basepath = "/Users/nico/Development/sokol-samples/sapp/data/gltf/DamagedHelmet/",
+// 	shader_desc_fn = metallic_shader_desc,
+// }
+
+//  gltf_filepath :: "Ferrari.gltf"
+// gltf_basepath :: "/Users/nico/Development/delve-framework/assets/meshes/multiple-materials/ferrari/"
 // gltf_filepath :: "ferrari.gltf"
 // gltf_basepath :: "/Users/nico/Development/odin-sokol-imgui-template/src/odin-gltf-sokol/models/ferrari/"
-//  gltf_filepath :: "DamagedHelmet.gltf"
-//  gltf_basepath :: "/Users/nico/Development/sokol-samples/sapp/data/gltf/DamagedHelmet/"
+// gltf_filepath :: "DamagedHelmet.gltf"
+// gltf_basepath :: "/Users/nico/Development/sokol-samples/sapp/data/gltf/DamagedHelmet/"
 // gltf_filepath :: "Box With Spaces.gltf"
 // gltf_basepath :: "/Users/nico/Development/odin-sokol-imgui-template/src/odin-gltf-sokol/models/"
 
@@ -151,13 +169,13 @@ init :: proc "c" () {
 
 	fmt.println("Backend:", sg.query_backend())
 
-	state.scene.shader = sg.make_shader(metallic_shader_desc(sg.query_backend()))
+	state.scene.shader = sg.make_shader(gltf_input.shader_desc_fn(sg.query_backend()))
 
 	state.point_light = Light_Params {
-		light_pos = {1.0, 1.0, 10.0},
-		light_range = 1.0,
+		light_pos = {10.0, 10.0, 10.0},
+		light_range = 200.0,
 		light_color = {1.0, 1.0, 1.0},
-		light_intensity = 70.0,
+		light_intensity = 700.0,
 	}
 
 	white_pixels: [64]u32
@@ -212,9 +230,9 @@ init :: proc "c" () {
 
 	basisu.setup()
 
-	fmt.println("Loading glTF file: ", gltf_filepath)
+	fmt.println("Loading glTF file: ", gltf_input.filepath)
 
-	full_path := strings.concatenate([]string{gltf_basepath, string(gltf_filepath)})
+	full_path := strings.concatenate([]string{gltf_input.basepath, string(gltf_input.filepath)})
 	req := fetch.sfetch_request_t{
 		path = strings.clone_to_cstring(full_path),
 		callback = gltf_fetch_callback,
@@ -298,7 +316,7 @@ gltf_fetch_callback :: proc "c" (response: ^fetch.sfetch_response_t) {
 
 send_buffer_request :: proc "c" (buffer_index: i32, uri: cstring) {
 	context = runtime.default_context()
-	full_path := strings.concatenate([]string{gltf_basepath, string(uri)})
+	full_path := strings.concatenate([]string{gltf_input.basepath, string(uri)})
 	user_data := Buffer_Fetch_Userdata {
 		buffer_index = i32(buffer_index),
 	}
@@ -341,7 +359,7 @@ gltf_buffer_fetch_callback :: proc "c" (response: ^fetch.sfetch_response_t) {
 
 send_image_request :: proc "c" (image_index: i32, uri: cstring) {
 	context = runtime.default_context()
-	full_path := strings.concatenate([]string{gltf_basepath, string(uri)})
+	full_path := strings.concatenate([]string{gltf_input.basepath, string(uri)})
 	user_data := Image_Fetch_Userdata {
 		image_index = i32(image_index)
 	}
@@ -477,16 +495,16 @@ frame :: proc "c" () {
 					}
 
 					bind.views[VIEW_base_color_tex] = base_color_tex.?
-					// bind.views[VIEW_metallic_roughness_tex] = metallic_roughness_tex.?
+					bind.views[VIEW_metallic_roughness_tex] = metallic_roughness_tex.?
 					bind.views[VIEW_normal_tex] = normal_tex.?
-					// bind.views[VIEW_occlusion_tex] = occlusion_tex.?
-					// bind.views[VIEW_emissive_tex] = emissive_tex.?
+					bind.views[VIEW_occlusion_tex] = occlusion_tex.?
+					bind.views[VIEW_emissive_tex] = emissive_tex.?
 					bind.views[VIEW_specular_tex] = specular_tex.?
 					bind.samplers[SMP_base_color_smp] = base_color_smp.?
-					// bind.samplers[SMP_metallic_roughness_smp] = metallic_roughness_smp.?
+					bind.samplers[SMP_metallic_roughness_smp] = metallic_roughness_smp.?
 					bind.samplers[SMP_normal_smp] = normal_smp.?
-					// bind.samplers[SMP_occlusion_smp] = occlusion_smp.?
-					// bind.samplers[SMP_emissive_smp] = emissive_smp.?
+					bind.samplers[SMP_occlusion_smp] = occlusion_smp.?
+					bind.samplers[SMP_emissive_smp] = emissive_smp.?
 					bind.samplers[SMP_specular_smp] = specular_smp.?
 
 					sg.apply_uniforms(UB_metallic_params, sg.Range{&mat.metallic.fs_params, size_of(mat.metallic.fs_params)})
