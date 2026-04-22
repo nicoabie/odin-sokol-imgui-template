@@ -498,6 +498,7 @@ core_event :: proc "c" (ev: ^sapp.Event) {
 	if simgui.handle_event(ev) {
 		return
 	}
+	utils.cam_handle_event(&camera, ev);
 }
 
 	main :: proc () {
