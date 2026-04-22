@@ -15,7 +15,10 @@ import sglue "sokol/glue"
 import slog "sokol/log"
 import fetch "sokol/fetch"
 import basisu "sokol/basisu/"
-import sgltf "sgltf/"
+import sgltf "sgltf"
+
+import imgui "imgui"
+import simgui "simgui"
 
 Gltf_Input :: struct {
 	filepath: string,
@@ -25,30 +28,21 @@ Gltf_Input :: struct {
 
 // gltf_input : Gltf_Input = {
 // 	filepath = "ferrari.gltf",
-// 	basepath = "/Users/nico/Development/odin-sokol-imgui-template/src/odin-gltf-sokol/models/ferrari/",
+// 	basepath = "/Users/nico/Development/odin-sokol-imgui-template/models/ferrari/",
 // 	shader_desc_fn = sgltf.acc_shader_desc,
 // }
 
-// gltf_input : Gltf_Input = {
-// 	filepath = "DamagedHelmet.gltf",
-// 	basepath = "/Users/nico/Development/sokol-samples/sapp/data/gltf/DamagedHelmet/",
-// 	shader_desc_fn = sgltf.metallic_shader_desc,
-// }
-
 gltf_input : Gltf_Input = {
-	filepath = "Box With Spaces.gltf",
-	basepath = "/Users/nico/Development/odin-sokol-imgui-template/models/",
+	filepath = "DamagedHelmet.gltf",
+	basepath = "/Users/nico/Development/sokol-samples/sapp/data/gltf/DamagedHelmet/",
 	shader_desc_fn = sgltf.metallic_shader_desc,
 }
 
-//  gltf_filepath :: "Ferrari.gltf"
-// gltf_basepath :: "/Users/nico/Development/delve-framework/assets/meshes/multiple-materials/ferrari/"
-// gltf_filepath :: "ferrari.gltf"
-// gltf_basepath :: "/Users/nico/Development/odin-sokol-imgui-template/src/odin-gltf-sokol/models/ferrari/"
-// gltf_filepath :: "DamagedHelmet.gltf"
-// gltf_basepath :: "/Users/nico/Development/sokol-samples/sapp/data/gltf/DamagedHelmet/"
-// gltf_filepath :: "Box With Spaces.gltf"
-// gltf_basepath :: "/Users/nico/Development/odin-sokol-imgui-template/src/odin-gltf-sokol/models/"
+// gltf_input : Gltf_Input = {
+// 	filepath = "Box With Spaces.gltf",
+// 	basepath = "/Users/nico/Development/odin-sokol-imgui-template/models/",
+// 	shader_desc_fn = sgltf.metallic_shader_desc,
+// }
 
 // TODO Galli: maybe I can use /Users/nico/Development/sokol-samples/sapp/offscreen-sapp.c to render to an image and save that for comparisson in tests
 
@@ -76,6 +70,7 @@ state: struct {
 		smp:    sg.Sampler,
 	},
 	point_light: sgltf.Light_Params,
+	imgui_context: ^simgui.Context,
 }
 
 Vec3 :: linalg.Vector3f32
@@ -146,6 +141,8 @@ init :: proc "c" () {
 		buffer_pool_size = 512,
 		image_pool_size = 256,
 	})
+
+	state.imgui_context = simgui.setup()
 
 	cam_init(&camera, {
 		latitude = 25.0,
@@ -410,6 +407,15 @@ frame :: proc "c" () {
 	context = runtime.default_context()
 	fetch.sfetch_dowork()
 
+	simgui.new_frame(
+		{
+			width = sapp.width(),
+			height = sapp.height(),
+			delta_time = sapp.frame_duration(),
+			dpi_scale = sapp.dpi_scale(),
+		},
+	)
+
 	// state.rx += 0.016
 	state.root_transform = linalg.matrix4_rotate(state.rx, Vec3{0, 1, 0})
 
@@ -520,6 +526,15 @@ frame :: proc "c" () {
 				sg.draw(prim.base_element, prim.num_elements, 1)
 			}
 		}
+	
+		// begin imgui
+		imgui.SetNextWindowPos(imgui.Vec2{10, 10})
+		if imgui.Begin("Light Position", nil, {.AlwaysAutoResize}) {
+			imgui.SliderFloat3("Position", &state.point_light.light_pos, -50, 50)
+		}
+		imgui.End()
+		simgui.render()
+		// end imgui
 
 		sg.end_pass()
 	}
@@ -533,12 +548,20 @@ cleanup :: proc "c" () {
 	sg.shutdown()
 }
 
-main :: proc () {
+core_event :: proc "c" (ev: ^sapp.Event) {
+	context = runtime.default_context()
+	if simgui.handle_event(ev) {
+		return
+	}
+}
+
+	main :: proc () {
 	context.logger = log.create_console_logger()
 	sapp.run({
 		init_cb = init,
 		frame_cb = frame,
 		cleanup_cb = cleanup,
+		event_cb = core_event,
 		width = 800,
 		height = 600,
 		window_title = "Opensim",
