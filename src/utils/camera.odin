@@ -1,8 +1,8 @@
-package camera
+package utils
 
+import sapp "../sokol/app"
 import "core:math"
 import "core:math/linalg"
-import sapp "../sokol/app"
 
 Vec3 :: linalg.Vector3f32
 Matrix :: linalg.Matrix4f32
@@ -17,34 +17,34 @@ DEFAULT_NEARZ :: 0.01
 DEFAULT_FARZ :: 100.0
 
 Camera_Desc :: struct {
-	min_dist:   f32,
+	min_dist:  f32,
 	max_dist:  f32,
 	min_lat:   f32,
-	max_lat:  f32,
+	max_lat:   f32,
 	distance:  f32,
-	latitude: f32,
+	latitude:  f32,
 	longitude: f32,
-	fov:     f32,
-	nearz:    f32,
-	farz:    f32,
-	center:   Vec3,
+	fov:       f32,
+	nearz:     f32,
+	farz:      f32,
+	center:    Vec3,
 }
 
 Camera :: struct {
-	min_dist:   f32,
+	min_dist:  f32,
 	max_dist:  f32,
 	min_lat:   f32,
-	max_lat:  f32,
+	max_lat:   f32,
 	distance:  f32,
-	latitude: f32,
+	latitude:  f32,
 	longitude: f32,
-	fov:     f32,
-	nearz:    f32,
-	farz:    f32,
-	center:   Vec3,
-	eye_pos:  Vec3,
-	view:    Matrix,
-	proj:    Matrix,
+	fov:       f32,
+	nearz:     f32,
+	farz:      f32,
+	center:    Vec3,
+	eye_pos:   Vec3,
+	view:      Matrix,
+	proj:      Matrix,
 	view_proj: Matrix,
 }
 
@@ -84,7 +84,7 @@ cam_zoom :: proc "c" (cam: ^Camera, d: f32) {
 _cam_euclidean :: proc "c" (latitude: f32, longitude: f32) -> Vec3 {
 	lat := latitude * math.PI / 180.0
 	lng := longitude * math.PI / 180.0
-	return Vec3{
+	return Vec3 {
 		math.cos_f32(lat) * math.sin_f32(lng),
 		math.sin_f32(lat),
 		math.cos_f32(lat) * math.cos_f32(lng),
@@ -96,7 +96,12 @@ cam_update :: proc "c" (cam: ^Camera, fb_width: i32, fb_height: i32) {
 	lon := cam.longitude * math.PI / 180.0
 	cam.eye_pos = cam.center + _cam_euclidean(cam.latitude, cam.longitude) * cam.distance
 	cam.view = linalg.matrix4_look_at_f32(cam.eye_pos, cam.center, Vec3{0, 1, 0})
-	cam.proj = linalg.matrix4_perspective_f32(cam.fov * math.PI / 180.0, cast(f32)fb_width / cast(f32)fb_height, cam.nearz, cam.farz)
+	cam.proj = linalg.matrix4_perspective_f32(
+		cam.fov * math.PI / 180.0,
+		cast(f32)fb_width / cast(f32)fb_height,
+		cam.nearz,
+		cam.farz,
+	)
 	cam.view_proj = cam.proj * cam.view
 }
 
