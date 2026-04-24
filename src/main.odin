@@ -24,17 +24,17 @@ Gltf_Input :: struct {
 	shader_desc_fn: proc "c" (backend: sg.Backend) -> sg.Shader_Desc,
 }
 
-gltf_input: Gltf_Input = {
-	filepath       = "ferrari.gltf",
-	basepath       = "/Users/nico/Development/odin-sokol-imgui-template/models/ferrari/",
-	shader_desc_fn = sgltf.acc_shader_desc,
-}
-
 // gltf_input: Gltf_Input = {
-// 	filepath       = "ferrari.glb",
-// 	basepath       = "/Users/nico/Downloads/Sim_Dream_Grand_Prix_2024_SF24_EVO_BUILD_2.0/content/cars/gp_2024_sf24evo/output/glb_a/",
+// 	filepath       = "ferrari.gltf",
+// 	basepath       = "/Users/nico/Development/odin-sokol-imgui-template/models/ferrari/",
 // 	shader_desc_fn = sgltf.acc_shader_desc,
 // }
+
+gltf_input: Gltf_Input = {
+	filepath       = "ferrari.glb",
+	basepath       = "/Users/nico/Downloads/Sim_Dream_Grand_Prix_2024_SF24_EVO_BUILD_2.0/content/cars/gp_2024_sf24evo/output/glb_a/",
+	shader_desc_fn = sgltf.acc_shader_desc,
+}
 
 
 

@@ -17,6 +17,10 @@ MAX_FILE_SIZE :: 64 * 1024 * 1024 // 64 MB should be enough for most glTF files 
 
 sfetch_buffers: [SFETCH_NUM_CHANNELS][SFETCH_NUM_LANES][MAX_FILE_SIZE]u8
 
+is_valid_uri :: proc(s: cstring) -> bool {
+	return s != nil && (cast([^]u8)(s))[0] != 0
+}
+
 Image_Fetch_Userdata :: struct {
 	image_index: i32,
 	state:       ^Global_State,
@@ -163,6 +167,8 @@ gltf_fetch_callback :: proc "c" (response: ^fetch.sfetch_response_t) {
 		}
 
 		if gltf_data.file_type == .glb {
+			// For GLB files, the buffers are already embedded in the file and they dont expose an URI
+			// so we are forced to load them immediately after parsing the file, instead of waiting for the fetch callback like we do for external buffers in .gltf files
 			if (cgltf.load_buffers(options, gltf_data, strings.clone_to_cstring(basepath)) !=
 				   .success) {
 				fmt.println("Failed to load glTF buffers")
@@ -178,15 +184,20 @@ gltf_fetch_callback :: proc "c" (response: ^fetch.sfetch_response_t) {
 		}
 		for i in 0 ..< len(gltf_data.buffers) {
 			gltf_buf := &gltf_data.buffers[i]
-			if gltf_buf.uri != nil && (cast([^]u8)(gltf_buf.uri))[0] != 0 {
-				send_buffer_request(state, i32(i), basepath, gltf_buf.uri)
-			} else if gltf_data.file_type == .glb {
-				// For GLB files, the buffer data is already loaded in memory, so we can create the sg_buffers directly
+			if gltf_buf.data != nil && gltf_buf.size > 0 {
 				sgltf.create_sg_buffers_for_gltf_buffer(
 					i32(i),
 					sg.Range{ptr = gltf_buf.data, size = uint(gltf_buf.size)},
 					&state.scene,
 				)
+			} else if is_valid_uri(gltf_buf.uri) {
+				send_buffer_request(state, i32(i), basepath, gltf_buf.uri)
+			} else {
+				fmt.println(
+					"Buffer at index %d has no valid URI and is not embedded in a GLB file",
+					i,
+				)
+				state.failed = true
 			}
 		}
 
@@ -197,14 +208,24 @@ gltf_fetch_callback :: proc "c" (response: ^fetch.sfetch_response_t) {
 		}
 		for i in 0 ..< len(gltf_data.images) {
 			gltf_img := &gltf_data.images[i]
-			if gltf_img.uri != nil && (cast([^]u8)(gltf_img.uri))[0] != 0 {
-				send_image_request(state, i32(i), basepath, gltf_img.uri)
-			} else if gltf_data.file_type == .glb {
+			if gltf_img.buffer_view != nil && gltf_img.buffer_view.size > 0 {
 				sgltf.create_sg_image_samplers_for_gltf_image(
 					i32(i),
-					sg.Range{ptr = cast(rawptr)(uintptr(gltf_img.buffer_view.buffer.data) + uintptr(gltf_img.buffer_view.offset)), size = uint(gltf_img.buffer_view.size)},
+					sg.Range {
+						ptr = cast(rawptr)(uintptr(gltf_img.buffer_view.buffer.data) +
+							uintptr(gltf_img.buffer_view.offset)),
+						size = uint(gltf_img.buffer_view.size),
+					},
 					&state.scene,
 				)
+			} else if is_valid_uri(gltf_img.uri) {
+				send_image_request(state, i32(i), basepath, gltf_img.uri)
+			} else {
+				fmt.println(
+					"Image at index %d has no valid URI and is not embedded in a GLB file",
+					i,
+				)
+				state.failed = true
 			}
 		}
 
