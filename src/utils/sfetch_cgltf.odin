@@ -13,7 +13,7 @@ import "vendor:cgltf"
 SFETCH_NUM_CHANNELS :: 1
 SFETCH_NUM_LANES :: 4
 
-MAX_FILE_SIZE :: 32 * 1024 * 1024
+MAX_FILE_SIZE :: 64 * 1024 * 1024 // 64 MB should be enough for most glTF files and their resources, adjust as needed
 
 sfetch_buffers: [SFETCH_NUM_CHANNELS][SFETCH_NUM_LANES][MAX_FILE_SIZE]u8
 
@@ -155,12 +155,21 @@ gltf_fetch_callback :: proc "c" (response: ^fetch.sfetch_response_t) {
 			cast([^]u8)(response.data.ptr),
 			uint(response.data.size),
 		)
+		defer cgltf.free(gltf_data)
 		if result != .success {
 			fmt.println("Failed to parse glTF file, error code:", result)
 			state.failed = true
 			return
 		}
-		defer cgltf.free(gltf_data)
+
+		if gltf_data.file_type == .glb {
+			if (cgltf.load_buffers(options, gltf_data, strings.clone_to_cstring(basepath)) !=
+				   .success) {
+				fmt.println("Failed to load glTF buffers")
+				state.failed = true
+				return
+			}
+		}
 
 		parse_buffers_result := sgltf.gltf_parse_buffers(gltf_data, &state.scene)
 		if parse_buffers_result != .Success {
@@ -171,6 +180,13 @@ gltf_fetch_callback :: proc "c" (response: ^fetch.sfetch_response_t) {
 			gltf_buf := &gltf_data.buffers[i]
 			if gltf_buf.uri != nil && (cast([^]u8)(gltf_buf.uri))[0] != 0 {
 				send_buffer_request(state, i32(i), basepath, gltf_buf.uri)
+			} else if gltf_data.file_type == .glb {
+				// For GLB files, the buffer data is already loaded in memory, so we can create the sg_buffers directly
+				sgltf.create_sg_buffers_for_gltf_buffer(
+					i32(i),
+					sg.Range{ptr = gltf_buf.data, size = uint(gltf_buf.size)},
+					&state.scene,
+				)
 			}
 		}
 
@@ -183,6 +199,12 @@ gltf_fetch_callback :: proc "c" (response: ^fetch.sfetch_response_t) {
 			gltf_img := &gltf_data.images[i]
 			if gltf_img.uri != nil && (cast([^]u8)(gltf_img.uri))[0] != 0 {
 				send_image_request(state, i32(i), basepath, gltf_img.uri)
+			} else if gltf_data.file_type == .glb {
+				sgltf.create_sg_image_samplers_for_gltf_image(
+					i32(i),
+					sg.Range{ptr = cast(rawptr)(uintptr(gltf_img.buffer_view.buffer.data) + uintptr(gltf_img.buffer_view.offset)), size = uint(gltf_img.buffer_view.size)},
+					&state.scene,
+				)
 			}
 		}
 

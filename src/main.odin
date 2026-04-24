@@ -30,6 +30,20 @@ gltf_input: Gltf_Input = {
 	shader_desc_fn = sgltf.acc_shader_desc,
 }
 
+// gltf_input: Gltf_Input = {
+// 	filepath       = "ferrari.glb",
+// 	basepath       = "/Users/nico/Downloads/Sim_Dream_Grand_Prix_2024_SF24_EVO_BUILD_2.0/content/cars/gp_2024_sf24evo/output/glb_a/",
+// 	shader_desc_fn = sgltf.acc_shader_desc,
+// }
+
+
+
+// gltf_input: Gltf_Input = {
+// 	filepath       = "Untitled.gltf",
+// 	basepath       = "/Users/nico/Downloads/mount_akina_2017/output/gltf/",
+// 	shader_desc_fn = sgltf.acc_shader_desc,
+// }
+
 // gltf_input : Gltf_Input = {
 // 	filepath = "DamagedHelmet.gltf",
 // 	basepath = "/Users/nico/Development/sokol-samples/sapp/data/gltf/DamagedHelmet/",
@@ -43,14 +57,6 @@ gltf_input: Gltf_Input = {
 // }
 
 // TODO Galli: maybe I can use /Users/nico/Development/sokol-samples/sapp/offscreen-sapp.c to render to an image and save that for comparisson in tests
-
-// statically allocated buffers for file downloads
-SFETCH_NUM_CHANNELS :: 1
-SFETCH_NUM_LANES :: 4
-
-MAX_FILE_SIZE :: 32 * 1024 * 1024
-
-sfetch_buffers: [SFETCH_NUM_CHANNELS][SFETCH_NUM_LANES][MAX_FILE_SIZE]u8
 
 state: utils.Global_State
 
@@ -79,8 +85,8 @@ init :: proc "c" () {
 	fetch.sfetch_setup(
 		&(fetch.sfetch_desc_t) {
 			max_requests = 128,
-			num_channels = SFETCH_NUM_CHANNELS,
-			num_lanes = SFETCH_NUM_LANES,
+			num_channels = utils.SFETCH_NUM_CHANNELS,
+			num_lanes = utils.SFETCH_NUM_LANES,
 			logger = {func = slog.func},
 		},
 	)
@@ -204,6 +210,7 @@ frame :: proc "c" () {
 
 	if state.failed {
 		sg.begin_pass({action = state.pass_action_failed, swapchain = sglue.swapchain()})
+		simgui.render()
 		sg.end_pass()
 	} else {
 		sg.begin_pass({action = state.pass_action_ok, swapchain = sglue.swapchain()})

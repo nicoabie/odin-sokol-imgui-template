@@ -3,11 +3,11 @@
     "tasks": [
         {
             "type": "shell",
-            "label": "odin: build debug gltf-sokol",
+            "label": "odin: build debug main",
             "command": "odin",
-            "args": ["build", "odin-gltf-sokol", "-debug"],
+            "args": ["build", "src/main.odin", "-file", "-debug"],
             "options": {
-                "cwd": "${workspaceFolder}/src"
+                "cwd": "${workspaceFolder}"
             },
         }
     ]
