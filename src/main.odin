@@ -1,11 +1,14 @@
 package main
 
 import "base:runtime"
-import "core:c"
 import "core:fmt"
+import "core:strconv"
 import "core:image"
 import "core:log"
+import "core:encoding/ini"
+import "core:math"
 import "core:math/linalg"
+import "core:strings"
 import "sgltf"
 import sapp "sokol/app"
 import basisu "sokol/basisu"
@@ -24,25 +27,33 @@ Gltf_Input :: struct {
 	shader_desc_fn: proc "c" (backend: sg.Backend) -> sg.Shader_Desc,
 }
 
+cameras_ini :: "/Users/nico/Downloads/mount_akina_2017/layout_downhill/data/cameras.ini"
+
 // gltf_input: Gltf_Input = {
 // 	filepath       = "ferrari.gltf",
 // 	basepath       = "/Users/nico/Development/odin-sokol-imgui-template/models/ferrari/",
 // 	shader_desc_fn = sgltf.acc_shader_desc,
 // }
 
-gltf_input: Gltf_Input = {
-	filepath       = "ferrari.glb",
-	basepath       = "/Users/nico/Downloads/Sim_Dream_Grand_Prix_2024_SF24_EVO_BUILD_2.0/content/cars/gp_2024_sf24evo/output/glb_a/",
-	shader_desc_fn = sgltf.acc_shader_desc,
-}
+// gltf_input: Gltf_Input = {
+// 	filepath       = "ferrari.glb",
+// 	basepath       = "/Users/nico/Downloads/Sim_Dream_Grand_Prix_2024_SF24_EVO_BUILD_2.0/content/cars/gp_2024_sf24evo/output/glb_a/",
+// 	shader_desc_fn = sgltf.acc_shader_desc,
+// }
 
 
 
 // gltf_input: Gltf_Input = {
-// 	filepath       = "Untitled.gltf",
-// 	basepath       = "/Users/nico/Downloads/mount_akina_2017/output/gltf/",
+// 	filepath       = "akina.glb",
+// 	basepath       = "/Users/nico/Downloads/mount_akina_2017/output/",
 // 	shader_desc_fn = sgltf.acc_shader_desc,
 // }
+
+gltf_input: Gltf_Input = {
+	filepath       = "Untitled.gltf",
+	basepath       = "/Users/nico/Downloads/mount_akina_2017/output/gltf/",
+	shader_desc_fn = sgltf.acc_shader_desc,
+}
 
 // gltf_input : Gltf_Input = {
 // 	filepath = "DamagedHelmet.gltf",
@@ -59,6 +70,10 @@ gltf_input: Gltf_Input = {
 // TODO Galli: maybe I can use /Users/nico/Development/sokol-samples/sapp/offscreen-sapp.c to render to an image and save that for comparisson in tests
 
 state: utils.Global_State
+current_camera_index: i32
+all_camera_positions: [65]Vec3
+all_camera_forwards: [65]Vec3
+num_cameras: i32
 
 Vec3 :: linalg.Vector3f32
 
@@ -77,8 +92,67 @@ init :: proc "c" () {
 	)
 
 	state.imgui_context = simgui.setup()
+	cameras_map, err, ok := ini.load_map_from_path(cameras_ini, context.allocator)
+	defer delete(cameras_map)
 
-	utils.cam_init(&camera, {latitude = 25.0, longitude = 0.0, distance = 8.5})
+	num_cameras = 0
+
+	for header, section in cameras_map {
+		if strings.has_prefix(header, "CAMERA_") {
+			cam_idx_str := strings.trim_prefix(header, "CAMERA_")
+			if len(cam_idx_str) == 0 {
+				continue
+			}
+			cam_idx := int(cam_idx_str[0] - '0')
+			for i := 1; i < len(cam_idx_str); i += 1 {
+				cam_idx = cam_idx * 10 + int(cam_idx_str[i] - '0')
+			}
+			if cam_idx < 0 || cam_idx >= len(all_camera_positions) {
+				continue
+			}
+			for key, value in section {
+				switch key {
+				case "POSITION":
+					parts := strings.split(value, ",")
+					if len(parts) == 3 {
+						x, _ := strconv.parse_f32(strings.trim_space(parts[0]))
+						y, _ := strconv.parse_f32(strings.trim_space(parts[1]))
+						z, _ := strconv.parse_f32(strings.trim_space(parts[2]))
+						all_camera_positions[cam_idx] = Vec3{x, y, z}
+					}
+				case "FORWARD":
+					parts := strings.split(value, ",")
+					if len(parts) == 3 {
+						x, _ := strconv.parse_f32(strings.trim_space(parts[0]))
+						y, _ := strconv.parse_f32(strings.trim_space(parts[1]))
+						z, _ := strconv.parse_f32(strings.trim_space(parts[2]))
+						all_camera_forwards[cam_idx] = Vec3{x, y, z}
+					}
+				}
+			}
+			num_cameras = num_cameras > i32(cam_idx + 1) ? num_cameras : i32(cam_idx + 1)
+		}
+	}
+
+	cam0_pos := all_camera_positions[0]
+	cam0_forward := all_camera_forwards[0]
+
+	cam_distance: f32 = 50.0
+	cam_center := cam0_pos + cam0_forward * cam_distance
+
+	forward_norm := linalg.normalize(cam0_forward)
+	cam_lat := math.asin(forward_norm.y) * 180.0 / math.PI
+	proj_xz := Vec3{forward_norm.x, 0, forward_norm.z}
+	proj_xz_norm := linalg.normalize(proj_xz)
+	cam_lon := math.acos(proj_xz_norm.z) * 180.0 / math.PI
+	if proj_xz_norm.x < 0 {
+		cam_lon = -cam_lon
+	}
+
+	fmt.println("Loaded", num_cameras, "cameras")
+	fmt.println("Initializing camera with:", "pos=", cam0_pos, "forward=", cam0_forward, "center=", cam_center, "lat=", cam_lat, "lon=", cam_lon, "dist=", cam_distance)
+
+	utils.cam_init(&camera, {latitude = cam_lat, longitude = cam_lon, distance = cam_distance, center = cam_center})
 
 	// setup sokol-fetch with 2 channels and 6 lanes per channel,
 	// we'll use one channel for mesh data and the other for textures
@@ -332,13 +406,58 @@ frame :: proc "c" () {
 			}
 		}
 
-		// begin imgui
-		imgui.SetNextWindowPos(imgui.Vec2{10, 10})
-		if imgui.Begin("Light Position", nil, {.AlwaysAutoResize}) {
-			imgui.SliderFloat3("Position", &state.point_light.light_pos, -50, 50)
+		set_camera_from_index :: proc(idx: i32) {
+		if idx < 0 || idx >= num_cameras {
+			return
 		}
-		imgui.End()
-		simgui.render()
+		current_camera_index = idx
+		pos := all_camera_positions[idx]
+		fwd := all_camera_forwards[idx]
+
+		fwd_norm := linalg.normalize(fwd)
+		lat := math.asin(fwd_norm.y) * 180.0 / math.PI
+		proj_xz := Vec3{fwd_norm.x, 0, fwd_norm.z}
+		proj_xz_norm := linalg.normalize(proj_xz)
+		lon := math.acos(proj_xz_norm.z) * 180.0 / math.PI
+		if proj_xz_norm.x < 0 {
+			lon = -lon
+		}
+
+		dist: f32 = 50.0
+		center := pos + fwd * dist
+
+		camera.latitude = lat
+		camera.longitude = lon
+		camera.distance = dist
+		camera.center = center
+
+		fmt.println("Switched to camera", idx, "pos=", pos, "center=", center)
+	}
+
+	// begin imgui
+	imgui.SetNextWindowPos(imgui.Vec2{10, 10})
+	if imgui.Begin("Cameras", nil, {.AlwaysAutoResize}) {
+		imgui.Text("Camera %d / %d", current_camera_index, num_cameras - 1)
+		changed := imgui.SliderInt("##cam", &current_camera_index, 0, max(0, num_cameras - 1))
+		if changed {
+			set_camera_from_index(current_camera_index)
+		}
+		if imgui.Button("<-") && current_camera_index > 0 {
+			set_camera_from_index(current_camera_index - 1)
+		}
+		imgui.SameLine()
+		if imgui.Button("->") && current_camera_index < num_cameras - 1 {
+			set_camera_from_index(current_camera_index + 1)
+		}
+	}
+	imgui.End()
+
+	imgui.SetNextWindowPos(imgui.Vec2{10, 80})
+	if imgui.Begin("Light Position", nil, {.AlwaysAutoResize}) {
+		imgui.SliderFloat3("Position", &state.point_light.light_pos, -50, 50)
+	}
+	imgui.End()
+	simgui.render()
 		// end imgui
 
 		sg.end_pass()
