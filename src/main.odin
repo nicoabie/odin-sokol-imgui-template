@@ -69,9 +69,9 @@ init :: proc "c" () {
 		{
 			environment = sglue.environment(),
 			logger = {func = slog.func},
-			sampler_pool_size = 256,
-			buffer_pool_size = 512,
-			image_pool_size = 256,
+			sampler_pool_size = sgltf.SCENE_MAX_IMAGES,
+			buffer_pool_size = sgltf.SCENE_MAX_BUFFERS,
+			image_pool_size = sgltf.SCENE_MAX_IMAGES,
 		},
 	)
 
