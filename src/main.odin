@@ -32,7 +32,7 @@ Gltf_Input :: struct {
 
 gltf_input: Gltf_Input = {
 	filepath       = "Untitled.gltf",
-	basepath       = "/Users/nico/AC Content/gp_2024_sf24evo/gltf/",
+	basepath       = "/Users/galli/AC Content/gp_2024_sf24evo/gltf/",
 	shader_desc_fn = sgltf.acc_shader_desc,
 }
 
@@ -216,6 +216,9 @@ frame :: proc "c" () {
 
 		for node_index in 0 ..< state.scene.num_nodes {
 			node := &state.scene.nodes[node_index]
+			if (node.has_skin) {
+				continue
+			}
 			vs_params := sgltf.Vs_Params {
 				model     = node.transform * state.root_transform,
 				view_proj = camera.view_proj,

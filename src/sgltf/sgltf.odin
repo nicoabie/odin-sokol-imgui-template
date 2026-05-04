@@ -30,6 +30,7 @@ Mesh :: struct {
 Node :: struct {
 	mesh:      i32,
 	transform: Matrix,
+	has_skin: bool,
 }
 
 Image :: struct {
@@ -529,6 +530,7 @@ gltf_parse_nodes :: proc(gltf: ^cgltf.data, scene: ^Scene) -> ParseNodesResult {
 			node := &scene.nodes[scene.num_nodes]
 			node.mesh = i32(cgltf.mesh_index(gltf, gltf_node.mesh))
 			node.transform = build_transform_for_gltf_node(gltf, gltf_node)
+			node.has_skin = gltf_node.skin != nil
 			scene.num_nodes += 1
 		}
 	}
