@@ -19,9 +19,10 @@ import imgui "imgui"
 import simgui "simgui"
 
 Gltf_Input :: struct {
-	filepath:       string,
-	basepath:       string,
-	shader_desc_fn: proc "c" (backend: sg.Backend) -> sg.Shader_Desc,
+	filepath:               string,
+	basepath:               string,
+	shader_desc_fn:         proc "c" (backend: sg.Backend) -> sg.Shader_Desc,
+	shader_skinned_desc_fn: proc "c" (backend: sg.Backend) -> sg.Shader_Desc,
 }
 
 // gltf_input: Gltf_Input = {
@@ -31,9 +32,10 @@ Gltf_Input :: struct {
 // }
 
 gltf_input: Gltf_Input = {
-	filepath       = "Untitled.gltf",
-	basepath       = "/Users/galli/AC Content/gp_2024_sf24evo/gltf/",
-	shader_desc_fn = sgltf.acc_shader_desc,
+	filepath               = "Untitled.glb",
+	basepath               = "/Users/galli/AC Content/gp_2024_sf24evo/gltf/",
+	shader_desc_fn         = sgltf.acc_shader_desc,
+	shader_skinned_desc_fn = sgltf.acc_skinned_shader_desc,
 }
 
 
@@ -102,6 +104,9 @@ init :: proc "c" () {
 	fmt.println("Backend:", sg.query_backend())
 
 	state.scene.shader = sg.make_shader(gltf_input.shader_desc_fn(sg.query_backend()))
+	state.scene.shader_skinned = sg.make_shader(
+		gltf_input.shader_skinned_desc_fn(sg.query_backend()),
+	)
 
 	state.point_light = sgltf.Light_Params {
 		light_pos       = {10.0, 10.0, 10.0},
@@ -201,7 +206,8 @@ frame :: proc "c" () {
 	)
 
 	// state.rx += 0.016
-	state.root_transform = linalg.matrix4_rotate(state.rx, Vec3{0, 1, 0})
+	// state.root_transform = linalg.matrix4_rotate(state.rx, Vec3{0, 1, 0})
+	state.root_transform = linalg.MATRIX4F32_IDENTITY
 
 	fb_width := sapp.width()
 	fb_height := sapp.height()
@@ -216,13 +222,17 @@ frame :: proc "c" () {
 
 		for node_index in 0 ..< state.scene.num_nodes {
 			node := &state.scene.nodes[node_index]
-			if (node.has_skin) {
-				continue
-			}
+			
 			vs_params := sgltf.Vs_Params {
-				model     = node.transform * state.root_transform,
 				view_proj = camera.view_proj,
 				eye_pos   = {camera.eye_pos.x, camera.eye_pos.y, camera.eye_pos.z},
+			}
+
+			if (node.has_skin) {
+				vs_params.model = linalg.identity(sgltf.Matrix)
+				vs_params.inverse_bind_matrices = state.scene.skins[0].inverse_bind_matrices
+			} else {
+				vs_params.model = node.transform * state.root_transform
 			}
 
 			mesh := &state.scene.meshes[node.mesh]

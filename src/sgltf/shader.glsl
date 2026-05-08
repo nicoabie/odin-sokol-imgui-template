@@ -13,16 +13,25 @@
 @ctype vec3 linalg.Vector3f32
 @ctype vec2 linalg.Vector2f32
 
-@vs vs
+@block vs_shared_uniforms
+
 layout(binding=0) uniform vs_params {
     mat4 model;
     mat4 view_proj;
     vec3 eye_pos;
+    mat4 inverse_bind_matrices[256];
 };
 
 layout(location=0) in vec4 position;
 layout(location=1) in vec3 normal;
 layout(location=2) in vec2 texcoord;
+layout(location=3) in uvec4 joints;
+layout(location=4) in vec4 weights;
+
+@end
+
+@vs vs
+@include_block vs_shared_uniforms
 
 out vec3 v_pos;
 out vec3 v_nrm;
@@ -31,6 +40,29 @@ out vec3 v_eye_pos;
 
 void main() {
     vec4 pos = model * position;
+    v_pos = pos.xyz / pos.w;
+    v_nrm = (model * vec4(normal, 0.0)).xyz;
+    v_uv = texcoord;
+    v_eye_pos = eye_pos;
+    gl_Position = view_proj * pos;
+}
+@end
+
+
+@vs vs_skinned
+@include_block vs_shared_uniforms
+
+out vec3 v_pos;
+out vec3 v_nrm;
+out vec2 v_uv;
+out vec3 v_eye_pos;
+
+void main() {
+    mat4 skin = (weights.x * inverse_bind_matrices[int(joints.x)] +
+                weights.y * inverse_bind_matrices[int(joints.y)] +
+                weights.z * inverse_bind_matrices[int(joints.z)] +
+                weights.w * inverse_bind_matrices[int(joints.w)]);
+    vec4 pos = model * skin * position;
     v_pos = pos.xyz / pos.w;
     v_nrm = (model * vec4(normal, 0.0)).xyz;
     v_uv = texcoord;
@@ -357,5 +389,6 @@ void main() {
 }
 @end
 
+@program acc_skinned vs_skinned acc_fs
 @program acc vs acc_fs
 @program metallic vs metallic_fs

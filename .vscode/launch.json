@@ -6,7 +6,7 @@
     "configurations": [
         {
             "name": "Launch Odin App",
-            "type": "cppdbg",
+            "type": "lldb-dap",
             "request": "launch",
             "preLaunchTask": "odin: build debug main",
             "program": "${workspaceFolder}/main.bin",
