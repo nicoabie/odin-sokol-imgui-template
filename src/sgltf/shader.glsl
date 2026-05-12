@@ -90,45 +90,27 @@ in vec3 v_eye_pos;
 
 out vec4 frag_color;
 
-
-vec3 get_normal() {
-    vec3 pos_dx = dFdx(v_pos);
-    vec3 pos_dy = dFdy(v_pos);
-    vec3 tex_dx = dFdx(vec3(v_uv,0.0));
-    vec3 tex_dy = dFdy(vec3(v_uv,0.0));
-    vec3 t = (tex_dy.t * pos_dx - tex_dx.t * pos_dy) / (tex_dx.s * tex_dy.t - tex_dy.s * tex_dx.t);
-    vec3 ng = normalize(v_nrm);
-    t = normalize(t - ng * dot(ng, t));
-    vec3 b = normalize(cross(ng, t));
-    mat3 tbn = mat3(t, b, ng);
-    vec2 n_xy = texture(sampler2D(normal_tex, normal_smp), v_uv).xw * 2.0 - 1.0;
-    vec3 n = vec3(n_xy.x, n_xy.y, sqrt(1.0 - n_xy.x*n_xy.x - n_xy.y*n_xy.y));
-    n = normalize(tbn * n);
-    return n;
-}
-
 void main() {
 
     // https://github.com/KhronosGroup/glTF/blob/main/extensions/2.0/Khronos/KHR_materials_specular/README.md#Implementation
     // F0​=mix(0.04⋅specular⋅specularColor,baseColor,metallic)
     // specularColorTexture is not present in Ferrari.gltf so we omit it as vec(1.0)
     // float specular = specular_factor * texture(sampler2D(specular_tex, specular_smp), v_uv).a; // glTF uses alpha channel
-    
-    // ambient
-    vec3 ambient = light_color * texture(sampler2D(base_color_tex, base_color_smp), v_uv).rgb;
 
-    // uses normal tex
-    vec3 norm = get_normal();;
-    
-    // diffuse 
+    vec4 base_color = texture(sampler2D(base_color_tex, base_color_smp), v_uv);
+
+    // ambient
+    vec3 ambient = light_color * base_color.rgb;
+
+    // diffuse
     vec3 lightDir = normalize(light_pos - v_pos);
     // TODO roughness_factor goes here?
-    float diff = pow(max(dot(norm, lightDir), 0.0), roughness_factor);
-    vec3 diffuse = light_color * diff * texture(sampler2D(base_color_tex, base_color_smp), v_uv).rgb;  
+    float diff = pow(max(dot(v_nrm, lightDir), 0.0), roughness_factor);
+    vec3 diffuse = light_color * diff * base_color.rgb;
 
     // specular
     vec3 viewDir = normalize(v_eye_pos - v_pos);
-    vec3 reflectDir = reflect(-lightDir, norm);  
+    vec3 reflectDir = reflect(-lightDir, v_nrm);
     float spec = pow(max(dot(viewDir, reflectDir), 0.0), specular_factor);
     vec3 specular = light_color * spec * texture(sampler2D(specular_tex, specular_smp), v_uv).rgb;
 
