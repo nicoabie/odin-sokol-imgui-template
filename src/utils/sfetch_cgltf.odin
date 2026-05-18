@@ -113,6 +113,7 @@ gltf_buffer_fetch_callback :: proc "c" (response: ^fetch.sfetch_response_t) {
 			sg.Range{ptr = response.data.ptr, size = uint(response.data.size)},
 			&user_data.state.scene,
 		)
+		sgltf.gltf_parse_skins(user_data.state.gltf_data, &user_data.state.scene, response.data.ptr)
 	}
 	if response.finished {
 		if response.failed {
@@ -159,7 +160,8 @@ gltf_fetch_callback :: proc "c" (response: ^fetch.sfetch_response_t) {
 			cast([^]u8)(response.data.ptr),
 			uint(response.data.size),
 		)
-		defer cgltf.free(gltf_data)
+		state.gltf_data = gltf_data
+		// defer cgltf.free(gltf_data)
 		if result != .success {
 			fmt.println("Failed to parse glTF file, error code:", result)
 			state.failed = true
@@ -190,6 +192,7 @@ gltf_fetch_callback :: proc "c" (response: ^fetch.sfetch_response_t) {
 					sg.Range{ptr = gltf_buf.data, size = uint(gltf_buf.size)},
 					&state.scene,
 				)
+				sgltf.gltf_parse_skins(state.gltf_data, &state.scene, gltf_buf.data)
 			} else if is_valid_uri(gltf_buf.uri) {
 				send_buffer_request(state, i32(i), basepath, gltf_buf.uri)
 			} else {

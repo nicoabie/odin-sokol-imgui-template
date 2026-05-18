@@ -6,6 +6,13 @@ warning, sokok-shdc is the mac version, [go here](https://github.com/floooh/soko
 
 build.odin does have a proc called `build_shaders`, feel free to duplicate that to also handle building other shader files
 
+# Building
+
+cd src/sokol
+./build_clibs_macos.sh 
+
+build sokol/basisu see readme
+
 # Running 
 
 RUN `odin run src/main.odin -file` from root

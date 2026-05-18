@@ -4,6 +4,7 @@ import basisu "../sokol/basisu/"
 import sg "../sokol/gfx"
 import "core:math/linalg"
 import "core:strings"
+import "core:mem"
 import "vendor:cgltf"
 import stbi "vendor:stb/image"
 
@@ -19,8 +20,13 @@ SCENE_MAX_PIPELINES :: 16
 SCENE_MAX_PRIMITIVES :: 256
 SCENE_MAX_MESHES :: 256
 SCENE_MAX_NODES :: 512
+SCENE_MAX_SKINS :: 8
 
 Matrix :: linalg.Matrix4f32
+
+Skin :: struct {
+	inverse_bind_matrices: [256]Matrix,
+}
 
 Mesh :: struct {
 	first_primitive: i32,
@@ -30,7 +36,7 @@ Mesh :: struct {
 Node :: struct {
 	mesh:      i32,
 	transform: Matrix,
-	has_skin: bool,
+	has_skin:  bool,
 }
 
 Image :: struct {
@@ -92,6 +98,7 @@ Scene :: struct {
 	num_primitives:  i32,
 	num_meshes:      i32,
 	num_nodes:       i32,
+	num_skins:       i32,
 	buffers:         [SCENE_MAX_BUFFERS]sg.Buffer,
 	images:          [SCENE_MAX_IMAGES]Image,
 	pipelines:       [SCENE_MAX_PIPELINES]sg.Pipeline,
@@ -99,11 +106,13 @@ Scene :: struct {
 	primitives:      [SCENE_MAX_PRIMITIVES]Primitive,
 	meshes:          [SCENE_MAX_MESHES]Mesh,
 	nodes:           [SCENE_MAX_NODES]Node,
+	skins:           [SCENE_MAX_SKINS]Skin,
 	creation_params: struct {
 		buffers: [SCENE_MAX_BUFFERS]Buffer_Creation_Params,
 		images:  [SCENE_MAX_IMAGES]Image_Sampler_Creation_Params,
 	},
 	shader:          sg.Shader,
+	shader_skinned:  sg.Shader,
 }
 
 Vertex_Buffer_Mapping :: struct {
@@ -116,6 +125,7 @@ Pipeline_Cache_Params :: struct {
 	prim_type:  sg.Primitive_Type,
 	index_type: sg.Index_Type,
 	alpha:      bool,
+	has_joints: bool,
 }
 
 Pipeline_Cache :: struct {
@@ -188,6 +198,10 @@ gltf_attr_type_to_vs_input_slot :: proc(attr_type: cgltf.attribute_type) -> i32 
 		return ATTR_metallic_normal
 	case .texcoord:
 		return ATTR_metallic_texcoord
+	case .joints:
+		return ATTR_metallic_joints
+	case .weights:
+		return ATTR_metallic_weights
 	}
 	return INVALID_INDEX
 }
@@ -394,6 +408,7 @@ pipelines_equal :: proc(p0, p1: ^Pipeline_Cache_Params) -> bool {
 	if p0.prim_type != p1.prim_type do return false
 	if p0.alpha != p1.alpha do return false
 	if p0.index_type != p1.index_type do return false
+	if p0.has_joints != p1.has_joints do return false
 
 	for i in 0 ..< sg.MAX_VERTEX_ATTRIBUTES {
 		a0 := &p0.layout.attrs[i]
@@ -413,11 +428,21 @@ create_sg_pipeline_for_gltf_primitive :: proc(
 	scene: ^Scene,
 	pip_cache: ^Pipeline_Cache,
 ) -> i32 {
+	has_joints := false
+	// TODO Galli, we are iteraring over primitives twice, here and in create_sg_layout_for_gltf_primitive
+	for attr_index in 0 ..< len(prim.attributes) {
+		attr := &prim.attributes[attr_index]
+		if (attr.type == .joints) {
+			has_joints = true
+		}
+	}
+
 	pip_params := Pipeline_Cache_Params {
 		layout     = create_sg_layout_for_gltf_primitive(gltf, prim, vbuf_map),
 		prim_type  = gltf_to_prim_type(prim.type),
 		index_type = gltf_to_index_type(prim),
 		alpha      = prim.material.alpha_mode != .opaque,
+		has_joints = has_joints,
 	}
 
 	for i in 0 ..< scene.num_pipelines {
@@ -431,7 +456,7 @@ create_sg_pipeline_for_gltf_primitive :: proc(
 		scene.pipelines[scene.num_pipelines] = sg.make_pipeline(
 			{
 				layout = pip_params.layout,
-				shader = scene.shader,
+				shader = has_joints ? scene.shader_skinned : scene.shader,
 				primitive_type = pip_params.prim_type,
 				index_type = pip_params.index_type,
 				cull_mode = .BACK,
@@ -453,6 +478,43 @@ create_sg_pipeline_for_gltf_primitive :: proc(
 	}
 
 	return scene.num_pipelines - 1
+}
+
+// This assumes only one bin buffer exists and that one will have the information
+extract_ibms :: proc(accessor: ^cgltf.accessor, buffer_data: rawptr) -> []Matrix {
+	buffer_view := accessor.buffer_view
+	assert(buffer_view != nil)
+
+	// Compute byte address
+	data_ptr := uintptr(buffer_data) + uintptr(buffer_view.offset) + uintptr(accessor.offset)
+
+	// Number of floats
+	num_components := cgltf.num_components(accessor.type) // usually 16 for MAT4
+	count := accessor.count * num_components
+
+	ptr := (^Matrix)(data_ptr);
+
+	return mem.slice_ptr(ptr, int(count))
+}
+
+// TODO GAlli: AC cars have only one skin
+// we should try not to call build_transform_for_gltf_node here again but use the computed
+// value already in our Nodes
+gltf_parse_skins :: proc(gltf: ^cgltf.data, scene: ^Scene, buffer_data: rawptr) {
+	for skin_index in 0 ..< len(gltf.skins) {
+		gltf_skin := &gltf.skins[skin_index]
+		skin := &scene.skins[scene.num_skins]
+
+		ibms := extract_ibms(gltf_skin.inverse_bind_matrices, buffer_data)
+
+		for joint_index in 0 ..< len(gltf_skin.joints) {
+			joint_node := gltf_skin.joints[joint_index]
+			joint_world := build_transform_for_gltf_node(gltf, joint_node)
+			skin.inverse_bind_matrices[joint_index] = joint_world * ibms[joint_index]
+		}
+
+		scene.num_skins += 1
+	}
 }
 
 // TODO Galli: this bottom up parsing is very inefficient, we should do a top down parsing and build the transforms as we go down the hierarchy instead of recursively calculating the parent transform for each node
