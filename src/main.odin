@@ -328,6 +328,9 @@ frame :: proc "c" () {
 					)
 				}
 
+				fmt.println("amount of calls: ", sgltf.amount_of_calls)
+				fmt.println("amount of nodes: ", len(state.scene.nodes))
+
 				sg.apply_bindings(bind)
 				sg.draw(prim.base_element, prim.num_elements, 1)
 			}

@@ -20,6 +20,8 @@ SCENE_MAX_PRIMITIVES :: 256
 SCENE_MAX_MESHES :: 256
 SCENE_MAX_NODES :: 512
 
+amount_of_calls:= 0
+
 Matrix :: linalg.Matrix4f32
 
 Mesh :: struct {
@@ -452,6 +454,7 @@ create_sg_pipeline_for_gltf_primitive :: proc(
 
 // TODO Galli: this bottom up parsing is very inefficient, we should do a top down parsing and build the transforms as we go down the hierarchy instead of recursively calculating the parent transform for each node
 build_transform_for_gltf_node :: proc(gltf: ^cgltf.data, node: ^cgltf.node) -> Matrix {
+	amount_of_calls += 1
 	parent_tform := linalg.identity(Matrix)
 	if node.parent != nil {
 		parent_tform = build_transform_for_gltf_node(gltf, node.parent)
