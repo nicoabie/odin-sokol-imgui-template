@@ -214,8 +214,7 @@ frame :: proc "c" () {
 	} else {
 		sg.begin_pass({action = state.pass_action_ok, swapchain = sglue.swapchain()})
 
-		for node_index in 0 ..< state.scene.num_nodes {
-			node := &state.scene.nodes[node_index]
+		for node in state.scene.nodes {
 			if (node.has_skin) {
 				continue
 			}

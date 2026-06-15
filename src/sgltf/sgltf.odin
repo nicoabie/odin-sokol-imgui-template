@@ -30,7 +30,7 @@ Mesh :: struct {
 Node :: struct {
 	mesh:      i32,
 	transform: Matrix,
-	has_skin: bool,
+	has_skin:  bool,
 }
 
 Image :: struct {
@@ -85,23 +85,16 @@ Image_Sampler_Creation_Params :: struct {
 }
 
 Scene :: struct {
-	num_buffers:     i32,
-	num_images:      i32,
-	num_pipelines:   i32,
-	num_materials:   i32,
-	num_primitives:  i32,
-	num_meshes:      i32,
-	num_nodes:       i32,
-	buffers:         [SCENE_MAX_BUFFERS]sg.Buffer,
-	images:          [SCENE_MAX_IMAGES]Image,
-	pipelines:       [SCENE_MAX_PIPELINES]sg.Pipeline,
-	materials:       [SCENE_MAX_MATERIALS]Material,
-	primitives:      [SCENE_MAX_PRIMITIVES]Primitive,
-	meshes:          [SCENE_MAX_MESHES]Mesh,
-	nodes:           [SCENE_MAX_NODES]Node,
+	buffers:         [dynamic; SCENE_MAX_BUFFERS]sg.Buffer,
+	images:          [dynamic; SCENE_MAX_IMAGES]Image,
+	pipelines:       [dynamic; SCENE_MAX_PIPELINES]sg.Pipeline,
+	materials:       [dynamic; SCENE_MAX_MATERIALS]Material,
+	primitives:      [dynamic; SCENE_MAX_PRIMITIVES]Primitive,
+	meshes:          [dynamic; SCENE_MAX_MESHES]Mesh,
+	nodes:           [dynamic; SCENE_MAX_NODES]Node,
 	creation_params: struct {
-		buffers: [SCENE_MAX_BUFFERS]Buffer_Creation_Params,
-		images:  [SCENE_MAX_IMAGES]Image_Sampler_Creation_Params,
+		buffers: [dynamic; SCENE_MAX_BUFFERS]Buffer_Creation_Params,
+		images:  [dynamic; SCENE_MAX_IMAGES]Image_Sampler_Creation_Params,
 	},
 	shader:          sg.Shader,
 }
@@ -282,7 +275,7 @@ create_vertex_buffer_mapping_for_gltf_primitive :: proc(
 }
 
 create_sg_buffers_for_gltf_buffer :: proc(gltf_buffer_index: i32, data: sg.Range, scene: ^Scene) {
-	for i in 0 ..< scene.num_buffers {
+	for _, i in scene.buffers {
 		p := &scene.creation_params.buffers[i]
 		if p.gltf_buffer_index == gltf_buffer_index {
 			sg.init_buffer(
@@ -304,7 +297,7 @@ create_sg_image_samplers_for_gltf_image :: proc "c" (
 	data: sg.Range,
 	scene: ^Scene,
 ) {
-	for i in 0 ..< scene.num_images {
+	for _, i in scene.images {
 		p := &scene.creation_params.images[i]
 		if p.gltf_image_index == gltf_image_index {
 			if p.has_basisu {
@@ -422,15 +415,16 @@ create_sg_pipeline_for_gltf_primitive :: proc(
 		alpha      = false,
 	}
 
-	for i in 0 ..< scene.num_pipelines {
+	for _, i in scene.pipelines {
 		if pipelines_equal(&pip_cache.items[i], &pip_params) {
-			return i
+			return i32(i)
 		}
 	}
 
-	if scene.num_pipelines < SCENE_MAX_PIPELINES {
-		pip_cache.items[scene.num_pipelines] = pip_params
-		scene.pipelines[scene.num_pipelines] = sg.make_pipeline(
+	pip_cache.items[len(scene.pipelines)] = pip_params
+	append(
+		&scene.pipelines,
+		sg.make_pipeline(
 			{
 				layout = pip_params.layout,
 				shader = scene.shader,
@@ -450,11 +444,10 @@ create_sg_pipeline_for_gltf_primitive :: proc(
 					},
 				},
 			},
-		)
-		scene.num_pipelines += 1
-	}
+		),
+	)
 
-	return scene.num_pipelines - 1
+	return i32(len(scene.pipelines) - 1)
 }
 
 // TODO Galli: this bottom up parsing is very inefficient, we should do a top down parsing and build the transforms as we go down the hierarchy instead of recursively calculating the parent transform for each node
@@ -529,11 +522,14 @@ gltf_parse_nodes :: proc(gltf: ^cgltf.data, scene: ^Scene) -> ParseNodesResult {
 	for node_index in 0 ..< len(gltf.nodes) {
 		gltf_node := &gltf.nodes[node_index]
 		if gltf_node.mesh != nil {
-			node := &scene.nodes[scene.num_nodes]
-			node.mesh = i32(cgltf.mesh_index(gltf, gltf_node.mesh))
-			node.transform = build_transform_for_gltf_node(gltf, gltf_node)
-			node.has_skin = gltf_node.skin != nil
-			scene.num_nodes += 1
+			append(
+				&scene.nodes,
+				Node {
+					mesh = i32(cgltf.mesh_index(gltf, gltf_node.mesh)),
+					transform = build_transform_for_gltf_node(gltf, gltf_node),
+					has_skin = gltf_node.skin != nil,
+				},
+			)
 		}
 	}
 	return .Success
@@ -553,22 +549,23 @@ gltf_parse_meshes :: proc(
 	if len(gltf.meshes) > SCENE_MAX_MESHES {
 		return .TooManyMeshes
 	}
-	scene.num_meshes = i32(len(gltf.meshes))
 
 	for mesh_index in 0 ..< len(gltf.meshes) {
 		gltf_mesh := &gltf.meshes[mesh_index]
 
-		if i32(len(gltf_mesh.primitives)) + scene.num_primitives > SCENE_MAX_PRIMITIVES {
+		if len(gltf_mesh.primitives) + len(scene.primitives) > SCENE_MAX_PRIMITIVES {
 			return .TooManyPrimitives
 		}
 
-		mesh := &scene.meshes[mesh_index]
-		mesh.first_primitive = scene.num_primitives
-		mesh.num_primitives = i32(len(gltf_mesh.primitives))
+		mesh := Mesh {
+			first_primitive = i32(len(scene.primitives)),
+			num_primitives  = i32(len(gltf_mesh.primitives)),
+		}
+		append(&scene.meshes, mesh)
 
 		for prim_index in 0 ..< len(gltf_mesh.primitives) {
 			gltf_prim := &gltf_mesh.primitives[prim_index]
-			prim := &scene.primitives[scene.num_primitives]
+			prim := Primitive{}
 
 			prim.vertex_buffers = create_vertex_buffer_mapping_for_gltf_primitive(gltf, gltf_prim)
 			prim.pipeline = create_sg_pipeline_for_gltf_primitive(
@@ -596,7 +593,7 @@ gltf_parse_meshes :: proc(
 				}
 			}
 
-			scene.num_primitives += 1
+			append(&scene.primitives, prim)
 		}
 	}
 	return .Success
@@ -612,10 +609,8 @@ gltf_parse_images :: proc(gltf: ^cgltf.data, scene: ^Scene) -> ParseImagesResult
 		return .TooManyImages
 	}
 
-	scene.num_images = i32(len(gltf.textures))
-	for i in 0 ..< scene.num_images {
-		gltf_tex := &gltf.textures[i]
-		p := &scene.creation_params.images[i]
+	for gltf_tex in gltf.textures {
+		p := Image_Sampler_Creation_Params{}
 		p.gltf_image_index = i32(cgltf.image_index(gltf, gltf_tex.image_))
 		assert(p.gltf_image_index >= 0)
 		p.has_basisu = strings.contains(string(gltf_tex.image_.uri), ".basis")
@@ -627,6 +622,9 @@ gltf_parse_images :: proc(gltf: ^cgltf.data, scene: ^Scene) -> ParseImagesResult
 			gltf_tex.sampler != nil ? gltf_to_sg_mipmap_filter(gltf_tex.sampler.min_filter) : .LINEAR
 		p.wrap_s = gltf_tex.sampler != nil ? gltf_to_sg_wrap(gltf_tex.sampler.wrap_s) : .REPEAT
 		p.wrap_t = gltf_tex.sampler != nil ? gltf_to_sg_wrap(gltf_tex.sampler.wrap_t) : .REPEAT
+
+		append(&scene.images, Image{})
+		append(&scene.creation_params.images, p)
 	}
 	return .Success
 }
@@ -642,10 +640,8 @@ gltf_parse_buffers :: proc(gltf: ^cgltf.data, scene: ^Scene) -> ParseBuffersResu
 		return .TooManyBuffers
 	}
 
-	scene.num_buffers = i32(len(gltf.buffer_views))
-	for i in 0 ..< scene.num_buffers {
-		gltf_buf_view := &gltf.buffer_views[i]
-		p := &scene.creation_params.buffers[i]
+	for gltf_buf_view in gltf.buffer_views {
+		p := Buffer_Creation_Params{}
 		p.gltf_buffer_index = i32(cgltf.buffer_index(gltf, gltf_buf_view.buffer))
 		p.offset = i32(gltf_buf_view.offset)
 		p.size = i32(gltf_buf_view.size)
@@ -659,7 +655,9 @@ gltf_parse_buffers :: proc(gltf: ^cgltf.data, scene: ^Scene) -> ParseBuffersResu
 		} else {
 			p.usage.vertex_buffer = true
 		}
-		scene.buffers[i] = sg.alloc_buffer()
+		
+		append(&scene.buffers, sg.alloc_buffer())
+		append(&scene.creation_params.buffers, p)
 	}
 	return .Success
 }
@@ -673,16 +671,14 @@ gltf_parse_materials :: proc(gltf: ^cgltf.data, scene: ^Scene) -> ParseMaterials
 	if len(gltf.materials) > SCENE_MAX_MATERIALS {
 		return .TooManyMaterials
 	}
-	scene.num_materials = i32(len(gltf.materials))
 
-	for i in 0 ..< scene.num_materials {
-		gltf_mat := &gltf.materials[i]
-		scene_mat := &scene.materials[i]
+	for gltf_mat in gltf.materials {
+		scene_mat := Material{}
 
 		scene_mat.is_metallic = bool(gltf_mat.has_pbr_metallic_roughness)
 
 		if scene_mat.is_metallic {
-			src := &gltf_mat.pbr_metallic_roughness
+			src := gltf_mat.pbr_metallic_roughness
 			dst := &scene_mat.metallic
 
 			dst.fs_params.base_color_factor = src.base_color_factor
@@ -700,6 +696,8 @@ gltf_parse_materials :: proc(gltf: ^cgltf.data, scene: ^Scene) -> ParseMaterials
 				specular           = gltf_mat.specular.specular_texture.texture != nil ? i32(cgltf.texture_index(gltf, gltf_mat.specular.specular_texture.texture)) : INVALID_INDEX,
 			}
 		}
+
+		append(&scene.materials, scene_mat)
 	}
 	return .Success
 }
