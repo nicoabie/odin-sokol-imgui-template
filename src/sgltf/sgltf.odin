@@ -20,7 +20,7 @@ SCENE_MAX_PRIMITIVES :: 256
 SCENE_MAX_MESHES :: 256
 SCENE_MAX_NODES :: 512
 
-amount_of_calls:= 0
+amount_of_calls := 0
 
 Matrix :: linalg.Matrix4f32
 
@@ -453,12 +453,12 @@ create_sg_pipeline_for_gltf_primitive :: proc(
 }
 
 // TODO Galli: this bottom up parsing is very inefficient, we should do a top down parsing and build the transforms as we go down the hierarchy instead of recursively calculating the parent transform for each node
-build_transform_for_gltf_node :: proc(gltf: ^cgltf.data, node: ^cgltf.node) -> Matrix {
+build_transform_for_gltf_node :: proc(
+	gltf: ^cgltf.data,
+	node: ^cgltf.node,
+	parent_transform: Matrix,
+) -> Matrix {
 	amount_of_calls += 1
-	parent_tform := linalg.identity(Matrix)
-	if node.parent != nil {
-		parent_tform = build_transform_for_gltf_node(gltf, node.parent)
-	}
 
 	local := linalg.identity(Matrix)
 
@@ -509,7 +509,29 @@ build_transform_for_gltf_node :: proc(gltf: ^cgltf.data, node: ^cgltf.node) -> M
 		local = translate * rotate * scale
 	}
 
-	return parent_tform * local
+	return parent_transform * local
+}
+
+gltf_parse_node :: proc(
+	gltf: ^cgltf.data,
+	node: ^cgltf.node,
+	parent_transform: Matrix,
+	accumulator: ^[dynamic; SCENE_MAX_NODES]Node,
+	processed_nodes: ^int,
+) {
+	processed_nodes^ -= 1
+	transform := build_transform_for_gltf_node(gltf, node, parent_transform)
+	if node.mesh != nil {
+		n := Node {
+			mesh      = i32(cgltf.mesh_index(gltf, node.mesh)),
+			transform = transform,
+			has_skin  = node.skin != nil,
+		}
+		append(accumulator, n)
+	}
+	for child in node.children {
+		gltf_parse_node(gltf, child, transform, accumulator, processed_nodes)
+	}
 }
 
 ParseNodesResult :: enum {
@@ -522,18 +544,12 @@ gltf_parse_nodes :: proc(gltf: ^cgltf.data, scene: ^Scene) -> ParseNodesResult {
 		return .TooManyNodes
 	}
 
-	for node_index in 0 ..< len(gltf.nodes) {
-		gltf_node := &gltf.nodes[node_index]
-		if gltf_node.mesh != nil {
-			append(
-				&scene.nodes,
-				Node {
-					mesh = i32(cgltf.mesh_index(gltf, gltf_node.mesh)),
-					transform = build_transform_for_gltf_node(gltf, gltf_node),
-					has_skin = gltf_node.skin != nil,
-				},
-			)
-		}
+	// i := 0
+	i := len(gltf.nodes) - 1
+	// for i < len(gltf.nodes) {
+	for i>=0 {
+		gltf_parse_node(gltf, &gltf.nodes[i], linalg.identity(Matrix), &scene.nodes, &i)
+		i -= 1
 	}
 	return .Success
 }
@@ -658,7 +674,7 @@ gltf_parse_buffers :: proc(gltf: ^cgltf.data, scene: ^Scene) -> ParseBuffersResu
 		} else {
 			p.usage.vertex_buffer = true
 		}
-		
+
 		append(&scene.buffers, sg.alloc_buffer())
 		append(&scene.creation_params.buffers, p)
 	}
