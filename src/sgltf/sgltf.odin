@@ -417,7 +417,9 @@ create_sg_pipeline_for_gltf_primitive :: proc(
 		layout     = create_sg_layout_for_gltf_primitive(gltf, prim, vbuf_map),
 		prim_type  = gltf_to_prim_type(prim.type),
 		index_type = gltf_to_index_type(prim),
-		alpha      = prim.material.alpha_mode != .opaque,
+		// disable alpha
+		// alpha      = prim.material.alpha_mode != .opaque,
+		alpha      = false,
 	}
 
 	for i in 0 ..< scene.num_pipelines {
